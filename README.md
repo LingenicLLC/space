@@ -15,44 +15,77 @@ Space combines stack-based execution with linear types, isolated memory universe
 | **Warp traversal** | ✓ Complete, verified |
 | **Arithmetic & bitwise** | ✓ Complete, verified |
 | **Control flow** | ✓ Complete |
-| **VM execution loop** | ✓ Complete |
-| **Memory operations** | ◐ Defined, not wired up |
-| **I/O primitives** | ◐ Defined, not wired up |
-| **Text/Unicode** | ✓ Complete, verified |
-| **Parser** | ✗ Missing |
-| **REPL** | ✗ Missing |
+| **Text/Unicode** | ✓ Complete, verified (UAX #29 grapheme clusters) |
+| **Compiler: Lexer** | ✓ Complete (UTF-8, escapes, literals) |
+| **Compiler: Parser** | ✓ Complete (recursive descent) |
+| **Compiler: Bytecode** | ✓ Complete (full opcode set) |
+| **Compiler: Codegen** | ✓ Complete |
+| **Memory operations** | ✓ Complete (cell + byte level) |
+| **Borrow/Warp ops** | ✓ Complete (fetch/store through borrows and warps) |
+| **I/O primitives** | ✓ Complete (emit/read with channel abstraction) |
+| **VM interpreter** | ◐ Modules complete, exec_prim needs wiring |
+| **Unicode tables** | ◐ Placeholder tables, Full profile needs UCD data |
+| **REPL** | ✗ Not started |
 | **C extraction** | ✗ Not yet tested |
+
+### Remaining Work
+
+1. **Wire `exec_prim`** — Memory, I/O, borrow, warp operations are implemented in separate modules but return "not implemented" in `Space.Execute.fst`. Connect the calls.
+
+2. **Expand `prim_op`** — Bytecode has opcodes for all operations, but `Space.Instruction.fst` only defines a subset. Add nip, tuck, pick, divs, neg, min, max, and all text/borrow/warp ops.
+
+3. **Unicode tables** — Normalization and case mapping use placeholder lookups. Full profile needs actual UCD (Unicode Character Database) tables. This is data (~85KB), not code.
+
+4. **Complex text slicing** — `text_slice_simple` only handles ASCII. Slicing text with emoji/combining characters needs grapheme index lookup.
 
 ## What's Here
 
-### Verified Core (41 F* files, ~4,400 lines)
+### Implementation (49 F* files)
 
 ```
 src/
-├── Space.Types.fst              # Core types: cell, discipline, universe_id
-├── Space.Stack.fst              # Stack operations: push, pop, dup, swap, over, rot
-├── Space.Stack.Properties.fst   # Stack verification lemmas
-├── Space.Discipline.fst         # Linear/affine/unrestricted rules
-├── Space.Universe.fst           # Isolated memory regions, self-destruction
-├── Space.Universe.Properties.fst
-├── Space.Borrow.fst             # Cross-universe pointer borrowing
-├── Space.Borrow.Properties.fst  # 15 lemmas proving borrow safety
-├── Space.Warp.fst               # Structured traversal without escaping pointers
-├── Space.Warp.Properties.fst    # 28 lemmas proving warp correctness
-├── Space.Memory.fst             # Allocation, fetch, store
-├── Space.Transfer.fst           # Cross-universe value transfer
-├── Space.Instruction.fst        # Full instruction set
-├── Space.Interpreter.fst        # Machine state
-├── Space.Execute.fst            # Primitive execution
-├── Space.Step.fst               # Single-step VM
-├── Space.Control.fst            # Branching, loops
-├── Space.World.fst              # Multi-universe runtime
-├── Space.Arithmetic.fst         # Add, sub, mul, div, mod
-├── Space.Arithmetic.Properties.fst  # 26 arithmetic lemmas
-├── Space.Bitwise.fst            # And, or, xor, not, shift
-├── Space.Comparison.fst         # Eq, neq, lt, gt
-├── Space.Text.*.fst             # UTF-8/16, normalization, graphemes (14 files)
-└── Makefile                     # Build configuration
+├── Core Types & Verification
+│   ├── Space.Types.fst              # Core types: cell, discipline, universe_id
+│   ├── Space.Stack.fst              # Stack operations: push, pop, dup, swap, over, rot
+│   ├── Space.Stack.Properties.fst   # Stack verification lemmas
+│   ├── Space.Discipline.fst         # Linear/affine/unrestricted rules
+│   ├── Space.Universe.fst           # Isolated memory regions, self-destruction
+│   ├── Space.Universe.Properties.fst
+│   ├── Space.Borrow.fst             # Cross-universe pointer borrowing
+│   ├── Space.Borrow.Properties.fst  # 15 lemmas proving borrow safety
+│   ├── Space.Warp.fst               # Structured traversal without escaping pointers
+│   ├── Space.Warp.Properties.fst    # 28 lemmas proving warp correctness
+│   ├── Space.Arithmetic.Properties.fst  # 26 arithmetic lemmas
+│   └── ...
+│
+├── Compiler Pipeline
+│   ├── Space.Compiler.Token.fst     # Token types, keywords, primitives
+│   ├── Space.Compiler.Lexer.fst     # UTF-8 lexer with escape sequences
+│   ├── Space.Compiler.AST.fst       # Abstract syntax tree
+│   ├── Space.Compiler.Parser.fst    # Recursive descent parser
+│   ├── Space.Compiler.Bytecode.fst  # Opcode definitions, module format
+│   ├── Space.Compiler.Codegen.fst   # AST to bytecode compilation
+│   ├── Space.Compiler.Decoder.fst   # Bytecode decoding
+│   └── Space.Compiler.Test.fst      # Compiler tests
+│
+├── Text/Unicode (14 files, ~1,945 lines)
+│   ├── Space.Text.Types.fst         # Text representation
+│   ├── Space.Text.UTF8.fst          # UTF-8 encoding/decoding
+│   ├── Space.Text.UTF16.fst         # UTF-16 for interop
+│   ├── Space.Text.Grapheme.fst      # UAX #29 grapheme clusters
+│   ├── Space.Text.Normalize.fst     # NFC/NFD/NFKC/NFKD
+│   ├── Space.Text.Case.fst          # Case mapping
+│   └── ...
+│   # (F* has no built-in Unicode — implemented from scratch)
+│
+├── VM Runtime
+│   ├── Space.Interpreter.fst        # Machine state
+│   ├── Space.Execute.fst            # Primitive execution
+│   ├── Space.Step.fst               # Single-step VM
+│   ├── Space.World.fst              # Multi-universe runtime
+│   └── ...
+│
+└── Makefile
 ```
 
 ### 93+ Machine-Checked Lemmas
@@ -84,6 +117,24 @@ cd src
 make verify    # Type-check and verify all proofs
 make extract   # Generate Karamel output (requires krml)
 ```
+
+## Runtime Architecture
+
+The F* implementation extracts to C via Karamel. Space programs compile to bytecode that runs on this verified runtime.
+
+```
+program.space  →  Compiler  →  bytecode  →  VM (extracted C)
+```
+
+**Runtime sizes:**
+
+| Profile | Includes | Binary |
+|---------|----------|--------|
+| Embedded | Core only | ~2KB |
+| Standard | Core + Text | ~35KB |
+| Full | Core + Text + Unicode tables | ~120KB |
+
+For comparison: Lua ~280KB, mruby ~400KB, QuickJS ~600KB. Embedded fits microcontrollers with 8KB flash.
 
 ## The Design
 
@@ -131,8 +182,8 @@ Apache 2.0. See [LICENSE](LICENSE).
 
 ## Author
 
-Created by [Danslav Slavenskoj](https://github.com/slavenskoj). Design conceived summer 2025, first implemented 2026-02-10.
+Created by [Danslav Slavenskoj](https://github.com/slavenskoj). Design conceived summer 2025, first implemented in F* 2026-02-10.
 
 ---
 
-*This is alpha software. The core is verified; the tooling is incomplete. Expect breaking changes.*
+*This is alpha software. Core semantics and compiler are complete; VM execution loop needs wiring. Expect breaking changes.*
