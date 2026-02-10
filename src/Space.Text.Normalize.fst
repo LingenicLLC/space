@@ -7,6 +7,10 @@ open FStar.List.Tot
 open Space.Text.Types
 open Space.Text.UTF8
 open Space.Text.Create
+open Space.Text.UCD.Types
+open Space.Text.UCD.CCC
+open Space.Text.UCD.Decomp
+open Space.Text.UCD.Comp
 
 (** Normalization form *)
 type normalization_form =
@@ -43,84 +47,64 @@ type quick_check =
   | QC_No
   | QC_Maybe
 
-(** Get combining class for codepoint (placeholder - would use UCD table) *)
+(** Get combining class for codepoint using UCD table *)
 let get_combining_class (cp: nat) : combining_class =
-  (* CCC 0 for most characters, non-zero for combining marks *)
-  (* This is a placeholder - real implementation uses Unicode tables *)
-  if cp >= 0x0300 && cp <= 0x036F then 230  (* Combining diacritical marks *)
-  else if cp >= 0x0591 && cp <= 0x05BD then 220  (* Hebrew marks *)
-  else 0  (* Starter *)
+  let ccc = lookup_ccc cp combining_class_table in
+  if ccc <= 254 then ccc else 0
 
 (** Check if codepoint is a starter (CCC = 0) *)
 let is_starter (cp: nat) : bool =
   get_combining_class cp = 0
 
-(** Get canonical decomposition (placeholder) *)
+(** Get canonical decomposition using UCD table *)
 let get_canonical_decomposition (cp: nat) : option (list nat) =
-  (* Placeholder - real implementation uses UCD Decomposition_Mapping *)
-  (* Example decompositions: *)
-  if cp = 0x00C0 then Some [0x0041; 0x0300]  (* À = A + combining grave *)
-  else if cp = 0x00C1 then Some [0x0041; 0x0301]  (* Á = A + combining acute *)
-  else if cp = 0x00C2 then Some [0x0041; 0x0302]  (* Â = A + combining circumflex *)
-  else if cp = 0x00C3 then Some [0x0041; 0x0303]  (* Ã = A + combining tilde *)
-  else if cp = 0x00C4 then Some [0x0041; 0x0308]  (* Ä = A + combining diaeresis *)
-  else if cp = 0x00C7 then Some [0x0043; 0x0327]  (* Ç = C + combining cedilla *)
-  else if cp = 0x00C8 then Some [0x0045; 0x0300]  (* È = E + combining grave *)
-  else if cp = 0x00C9 then Some [0x0045; 0x0301]  (* É = E + combining acute *)
-  else if cp = 0x00CA then Some [0x0045; 0x0302]  (* Ê = E + combining circumflex *)
-  else if cp = 0x00CB then Some [0x0045; 0x0308]  (* Ë = E + combining diaeresis *)
-  else if cp = 0x00D1 then Some [0x004E; 0x0303]  (* Ñ = N + combining tilde *)
-  else if cp = 0x00D6 then Some [0x004F; 0x0308]  (* Ö = O + combining diaeresis *)
-  else if cp = 0x00DC then Some [0x0055; 0x0308]  (* Ü = U + combining diaeresis *)
-  else if cp = 0x1E00 then Some [0x0041; 0x0325]  (* Ḁ = A + combining ring below *)
-  else None
+  lookup_decomp cp canonical_decomposition_table
 
-(** Get compatibility decomposition (placeholder) *)
+(** Get compatibility decomposition - uses canonical table with compatibility extensions *)
 let get_compatibility_decomposition (cp: nat) : option (list nat) =
-  (* Includes canonical + compatibility mappings *)
+  (* First check canonical decompositions *)
   match get_canonical_decomposition cp with
   | Some d -> Some d
   | None ->
-    (* Compatibility-only decompositions *)
+    (* Compatibility-only decompositions (hardcoded common cases) *)
+    (* Fractions *)
     if cp = 0x00BC then Some [0x0031; 0x2044; 0x0034]  (* ¼ = 1/4 *)
     else if cp = 0x00BD then Some [0x0031; 0x2044; 0x0032]  (* ½ = 1/2 *)
     else if cp = 0x00BE then Some [0x0033; 0x2044; 0x0034]  (* ¾ = 3/4 *)
+    (* Symbol equivalents *)
     else if cp = 0x2126 then Some [0x03A9]  (* Ω (ohm) = Ω (omega) *)
     else if cp = 0x212A then Some [0x004B]  (* K (kelvin) = K *)
     else if cp = 0x212B then Some [0x00C5]  (* Å (angstrom) = Å *)
-    else if cp = 0xFF21 then Some [0x0041]  (* Ａ (fullwidth) = A *)
-    else if cp = 0xFF22 then Some [0x0042]  (* Ｂ (fullwidth) = B *)
+    (* Fullwidth Latin (common subset) *)
+    else if cp >= 0xFF21 && cp <= 0xFF3A then Some [cp - 0xFF21 + 0x0041]
+    else if cp >= 0xFF41 && cp <= 0xFF5A then Some [cp - 0xFF41 + 0x0061]
     else None
 
-(** Get composition (placeholder) *)
+(** Get composition using UCD table with exclusion checking *)
 let get_composition (first second: nat) : option nat =
-  (* Placeholder - real implementation uses UCD composition exclusions *)
-  if first = 0x0041 && second = 0x0300 then Some 0x00C0  (* A + grave = À *)
-  else if first = 0x0041 && second = 0x0301 then Some 0x00C1  (* A + acute = Á *)
-  else if first = 0x0041 && second = 0x0302 then Some 0x00C2  (* A + circumflex = Â *)
-  else if first = 0x0041 && second = 0x0303 then Some 0x00C3  (* A + tilde = Ã *)
-  else if first = 0x0041 && second = 0x0308 then Some 0x00C4  (* A + diaeresis = Ä *)
-  else if first = 0x0043 && second = 0x0327 then Some 0x00C7  (* C + cedilla = Ç *)
-  else if first = 0x0045 && second = 0x0300 then Some 0x00C8  (* E + grave = È *)
-  else if first = 0x0045 && second = 0x0301 then Some 0x00C9  (* E + acute = É *)
-  else if first = 0x0045 && second = 0x0302 then Some 0x00CA  (* E + circumflex = Ê *)
-  else if first = 0x0045 && second = 0x0308 then Some 0x00CB  (* E + diaeresis = Ë *)
-  else if first = 0x004E && second = 0x0303 then Some 0x00D1  (* N + tilde = Ñ *)
-  else if first = 0x004F && second = 0x0308 then Some 0x00D6  (* O + diaeresis = Ö *)
-  else if first = 0x0055 && second = 0x0308 then Some 0x00DC  (* U + diaeresis = Ü *)
-  else None
+  Space.Text.UCD.Comp.try_compose first second
+
+(** Decompose a single codepoint one level *)
+let decompose_one (cp: nat) (compat: bool) : list nat =
+  let decomp = if compat then get_compatibility_decomposition cp
+               else get_canonical_decomposition cp in
+  match decomp with
+  | None -> [cp]
+  | Some cps -> cps
+
+(** Recursively decompose until fixed point, with fuel *)
+let rec decompose_pass (cps: list nat) (compat: bool) (fuel: nat)
+  : Tot (list nat) (decreases fuel) =
+  if fuel = 0 then cps
+  else
+    let fuel' : nat = fuel - 1 in
+    let expanded = List.Tot.concatMap (fun cp -> decompose_one cp compat) cps in
+    if List.Tot.length expanded = List.Tot.length cps then cps
+    else decompose_pass expanded compat fuel'
 
 (** Recursively decompose a codepoint *)
-let rec full_decomposition (cp: nat) (compat: bool) (fuel: nat)
-  : Tot (list nat) (decreases fuel) =
-  if fuel = 0 then [cp]
-  else
-    let decomp = if compat then get_compatibility_decomposition cp
-                 else get_canonical_decomposition cp in
-    match decomp with
-    | None -> [cp]
-    | Some cps ->
-      List.Tot.concatMap (fun c -> full_decomposition c compat (fuel - 1)) cps
+let full_decomposition (cp: nat) (compat: bool) (fuel: nat) : list nat =
+  decompose_pass [cp] compat fuel
 
 (** Decompose all codepoints in list *)
 let decompose_codepoints (cps: list nat) (compat: bool) : list nat =
@@ -157,17 +141,19 @@ let canonical_order (cps: list nat) : list nat =
 (** Compose adjacent characters where possible (with fuel for termination) *)
 let rec compose_pass_aux (cps: list nat) (fuel: nat) : Tot (list nat) (decreases fuel) =
   if fuel = 0 then cps
-  else match cps with
-  | [] -> []
-  | [cp] -> [cp]
-  | first :: second :: rest ->
-    match get_composition first second with
-    | Some composed ->
-      (* Composed successfully, try to compose more *)
-      compose_pass_aux (composed :: rest) (fuel - 1)
-    | None ->
-      (* No composition - move on *)
-      first :: compose_pass_aux (second :: rest) (fuel - 1)
+  else
+    let fuel' : nat = fuel - 1 in
+    match cps with
+    | [] -> []
+    | [cp] -> [cp]
+    | first :: second :: rest ->
+      match get_composition first second with
+      | Some composed ->
+        (* Composed successfully, try to compose more *)
+        compose_pass_aux (composed :: rest) fuel'
+      | None ->
+        (* No composition - move on *)
+        first :: compose_pass_aux (second :: rest) fuel'
 
 (** Compose pass wrapper *)
 let compose_pass (cps: list nat) : list nat =
@@ -177,9 +163,10 @@ let compose_pass (cps: list nat) : list nat =
 let rec compose_full (cps: list nat) (fuel: nat) : Tot (list nat) (decreases fuel) =
   if fuel = 0 then cps
   else
+    let fuel' : nat = fuel - 1 in
     let composed = compose_pass cps in
     if length composed = length cps then cps
-    else compose_full composed (fuel - 1)
+    else compose_full composed fuel'
 
 (** Extract codepoints from UTF-8 bytes *)
 let rec bytes_to_codepoints (bytes: list UInt8.t) : Tot (list nat) (decreases (length bytes)) =

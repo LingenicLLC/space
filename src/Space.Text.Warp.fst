@@ -21,6 +21,15 @@ noeq type text_warp = {
   end_pos: nat;
 }
 
+(** Helper: advance iterator to position with fuel *)
+let rec advance_iter_to (it: text_iter) (target: nat) (fuel: nat)
+  : Tot (option text_iter) (decreases fuel) =
+  if fuel = 0 then None
+  else if iter_position it >= target then Some it
+  else match iter_next it with
+    | None -> None
+    | Some (_, it') -> advance_iter_to it' target (fuel - 1)
+
 (** Create forward warp over entire text *)
 let text_warp_begin (t: text) : text_warp = {
   iter = iter_begin t;
@@ -29,16 +38,43 @@ let text_warp_begin (t: text) : text_warp = {
   end_pos = t.header.grapheme_count;
 }
 
+(** Create backward warp starting at end of text *)
+let text_warp_begin_backward (t: text) : option text_warp =
+  if t.header.grapheme_count = 0 then
+    Some {
+      iter = iter_begin t;
+      direction = Backward;
+      start_pos = 0;
+      end_pos = 0;
+    }
+  else
+    let it = iter_begin t in
+    (* Advance to the last grapheme position *)
+    let target = t.header.grapheme_count - 1 in
+    match advance_iter_to it target (target + 1) with
+    | None -> None
+    | Some it' -> Some {
+        iter = it';
+        direction = Backward;
+        start_pos = 0;
+        end_pos = t.header.grapheme_count;
+      }
+
 (** Create warp over range [start, finish) *)
 let text_warp_range (t: text) (start finish: nat) : option text_warp =
   if finish < start then None
   else if finish > t.header.grapheme_count then None
-  else Some {
-    iter = iter_begin t;  (* Would need to advance to start *)
-    direction = Forward;
-    start_pos = start;
-    end_pos = finish;
-  }
+  else
+    let it = iter_begin t in
+    (* Advance to start position *)
+    match advance_iter_to it start (start + 1) with
+    | None -> None
+    | Some it' -> Some {
+        iter = it';
+        direction = Forward;
+        start_pos = start;
+        end_pos = finish;
+      }
 
 (** Check if warp is exhausted *)
 let text_warp_done (w: text_warp) : bool =
@@ -50,6 +86,16 @@ let text_warp_done (w: text_warp) : bool =
 let text_warp_position (w: text_warp) : nat =
   iter_position w.iter
 
+(** Move iterator backward by creating fresh and advancing to pos-1 *)
+let iter_prev (it: text_iter) : option text_iter =
+  let pos = iter_position it in
+  if pos = 0 then None
+  else
+    let t = it.text in
+    let target = pos - 1 in
+    let fresh = iter_begin t in
+    advance_iter_to fresh target (target + 1)
+
 (** Advance warp and get current grapheme *)
 let text_warp_next (w: text_warp) : option (grapheme * text_warp) =
   if text_warp_done w then None
@@ -58,7 +104,14 @@ let text_warp_next (w: text_warp) : option (grapheme * text_warp) =
     (match iter_next w.iter with
      | None -> None
      | Some (g, it') -> Some (g, { w with iter = it' }))
-  | Backward -> None  (* Backward iteration not yet implemented *)
+  | Backward ->
+    (* For backward: get current grapheme, then move iterator back *)
+    (match iter_next w.iter with
+     | None -> None
+     | Some (g, _) ->
+       match iter_prev w.iter with
+       | None -> Some (g, { w with iter = w.iter })  (* At start, return grapheme but don't move *)
+       | Some it' -> Some (g, { w with iter = it' }))
 
 (** Get remaining grapheme count *)
 let text_warp_remaining (w: text_warp) : nat =

@@ -80,7 +80,10 @@ let decode_stack_op (op: UInt8.t) : option prim_op =
   else if v = 0x03 then Some PrimSwap
   else if v = 0x04 then Some PrimOver
   else if v = 0x05 then Some PrimRot
-  else None  (* nip, tuck, pick not in prim_op *)
+  else if v = 0x06 then Some PrimNip
+  else if v = 0x07 then Some PrimTuck
+  else if v = 0x08 then Some PrimPick
+  else None
 
 (** Decode arithmetic operation opcodes (0x10-0x1F) *)
 let decode_arith_op (op: UInt8.t) : option prim_op =
@@ -89,8 +92,12 @@ let decode_arith_op (op: UInt8.t) : option prim_op =
   else if v = 0x11 then Some PrimSub
   else if v = 0x12 then Some PrimMul
   else if v = 0x13 then Some PrimDivU
+  else if v = 0x14 then Some PrimDivS
   else if v = 0x15 then Some PrimMod
-  else None  (* divs, neg, min, max not in prim_op *)
+  else if v = 0x16 then Some PrimNeg
+  else if v = 0x17 then Some PrimMin
+  else if v = 0x18 then Some PrimMax
+  else None
 
 (** Decode bitwise operation opcodes (0x20-0x2F) *)
 let decode_bitwise_op (op: UInt8.t) : option prim_op =
@@ -110,7 +117,9 @@ let decode_compare_op (op: UInt8.t) : option prim_op =
   else if v = 0x31 then Some PrimNeq
   else if v = 0x34 then Some PrimLtU
   else if v = 0x35 then Some PrimGtU
-  else None  (* lt, gt (signed) not in prim_op *)
+  else if v = 0x36 then Some PrimLtS
+  else if v = 0x37 then Some PrimGtS
+  else None
 
 (** Decode memory operation opcodes (0x40-0x4F) *)
 let decode_memory_op (op: UInt8.t) : option prim_op =
@@ -118,7 +127,68 @@ let decode_memory_op (op: UInt8.t) : option prim_op =
   if v = 0x40 then Some PrimAlloc
   else if v = 0x41 then Some PrimFetch
   else if v = 0x42 then Some PrimStore
-  else None  (* bytes_len, bytes_copy not in prim_op *)
+  else if v = 0x43 then Some PrimBytesAlloc
+  else if v = 0x44 then Some PrimBytesFetch
+  else if v = 0x45 then Some PrimBytesStore
+  else if v = 0x46 then Some PrimBytesLen
+  else if v = 0x47 then Some PrimBytesCopy
+  else None
+
+(** Decode borrow operation opcodes (0x50-0x5F) *)
+let decode_borrow_op (op: UInt8.t) : option prim_op =
+  let v = UInt8.v op in
+  if v = 0x50 then Some PrimBorrowPointer
+  else if v = 0x51 then Some PrimReturnPointer
+  else if v = 0x52 then Some PrimDropPointer
+  else if v = 0x53 then Some PrimFetchBorrowed
+  else if v = 0x54 then Some PrimStoreBorrowed
+  else if v = 0x55 then Some PrimFetchAndEnd
+  else if v = 0x56 then Some PrimStoreAndEnd
+  else if v = 0x57 then Some PrimOffsetBorrowed
+  else None
+
+(** Decode warp operation opcodes (0x60-0x6F) *)
+let decode_warp_op (op: UInt8.t) : option prim_op =
+  let v = UInt8.v op in
+  if v = 0x60 then Some PrimWarpFetch
+  else if v = 0x61 then Some PrimWarpStore
+  else if v = 0x62 then Some PrimWarpAdvance
+  else if v = 0x63 then Some PrimWarpFollow
+  else if v = 0x64 then Some PrimWarpPosition
+  else if v = 0x65 then Some PrimWarpRestore
+  else if v = 0x66 then Some PrimWarpNull
+  else None
+
+(** Decode text operation opcodes (0x70-0x7F) *)
+let decode_text_op (op: UInt8.t) : option prim_op =
+  let v = UInt8.v op in
+  if v = 0x70 then Some PrimCreateText
+  else if v = 0x71 then Some PrimTextByteLength
+  else if v = 0x72 then Some PrimTextGraphemeCount
+  else if v = 0x73 then Some PrimTextIsSimple
+  else if v = 0x74 then Some PrimTextGraphemeAt
+  else if v = 0x75 then Some PrimTextGraphemeFirst
+  else if v = 0x76 then Some PrimTextGraphemeLast
+  else if v = 0x77 then Some PrimTextSlice
+  else if v = 0x78 then Some PrimTextConcat
+  else if v = 0x79 then Some PrimTextEqual
+  else if v = 0x7A then Some PrimTextCompare
+  else if v = 0x7B then Some PrimTextCodePointCount
+  else if v = 0x7C then Some PrimTextCodePointAt
+  else None
+
+(** Decode text warp operation opcodes (0x80-0x8F) *)
+let decode_text_warp_op (op: UInt8.t) : option prim_op =
+  let v = UInt8.v op in
+  if v = 0x80 then Some PrimTextWarpHasGrapheme
+  else if v = 0x81 then Some PrimTextWarpCurrentGrapheme
+  else if v = 0x82 then Some PrimTextWarpNextGrapheme
+  else if v = 0x83 then Some PrimTextWarpGraphemeIndex
+  else if v = 0x84 then Some PrimTextWarpGotoGrapheme
+  else if v = 0x85 then Some PrimGraphemeByteLength
+  else if v = 0x86 then Some PrimGraphemeIsAscii
+  else if v = 0x87 then Some PrimGraphemeCodePoints
+  else None
 
 (** Decode system operation opcodes (0xB0-0xBF) *)
 let decode_system_op (op: UInt8.t) : option prim_op =
@@ -126,6 +196,21 @@ let decode_system_op (op: UInt8.t) : option prim_op =
   if v = 0xB0 then Some PrimHalt
   else if v = 0xB1 then Some PrimEmit
   else if v = 0xB2 then Some PrimKey
+  else if v = 0xB3 then Some PrimEmitGrapheme
+  else None
+
+(** Decode normalization/case opcodes (0xC2-0xCF) *)
+let decode_unicode_op (op: UInt8.t) : option prim_op =
+  let v = UInt8.v op in
+  (* Normalization *)
+  if v = 0xC2 then Some PrimTextNormalizeNfc
+  else if v = 0xC3 then Some PrimTextNormalizeNfd
+  else if v = 0xC4 then Some PrimTextNormalizeNfkc
+  else if v = 0xC5 then Some PrimTextNormalizeNfkd
+  (* Case mapping *)
+  else if v = 0xC6 then Some PrimTextToUpper
+  else if v = 0xC7 then Some PrimTextToLower
+  else if v = 0xC8 then Some PrimTextToTitle
   else None
 
 (** Decode discipline byte *)
@@ -192,6 +277,30 @@ let decode_one (bytes: list UInt8.t) : decode_result =
        | Some prim -> DecOk (IPrimitive prim, rest)
        | None -> DecError "Unsupported memory operation")
 
+    (* Borrow: 0x50-0x5F *)
+    else if v >= 0x50 && v <= 0x5F then
+      (match decode_borrow_op op with
+       | Some prim -> DecOk (IPrimitive prim, rest)
+       | None -> DecError "Unsupported borrow operation")
+
+    (* Warp: 0x60-0x6F *)
+    else if v >= 0x60 && v <= 0x6F then
+      (match decode_warp_op op with
+       | Some prim -> DecOk (IPrimitive prim, rest)
+       | None -> DecError "Unsupported warp operation")
+
+    (* Text: 0x70-0x7F *)
+    else if v >= 0x70 && v <= 0x7F then
+      (match decode_text_op op with
+       | Some prim -> DecOk (IPrimitive prim, rest)
+       | None -> DecError "Unsupported text operation")
+
+    (* Text warp + grapheme: 0x80-0x8F *)
+    else if v >= 0x80 && v <= 0x8F then
+      (match decode_text_warp_op op with
+       | Some prim -> DecOk (IPrimitive prim, rest)
+       | None -> DecError "Unsupported text warp operation")
+
     (* Control flow: 0x90-0x9F *)
     else if v = 0x90 then  (* call *)
       (match read_u16 rest with
@@ -249,6 +358,12 @@ let decode_one (bytes: list UInt8.t) : decode_result =
       (match decode_system_op op with
        | Some prim -> DecOk (IPrimitive prim, rest)
        | None -> DecError "Unsupported system operation")
+
+    (* Unicode: UTF-16, normalization, case - 0xC0-0xCF *)
+    else if v >= 0xC0 && v <= 0xCF then
+      (match decode_unicode_op op with
+       | Some prim -> DecOk (IPrimitive prim, rest)
+       | None -> DecError "Unsupported unicode operation")
 
     (* Push instructions: 0xF0-0xFF *)
     else if v = 0xF0 then  (* push_i8 *)

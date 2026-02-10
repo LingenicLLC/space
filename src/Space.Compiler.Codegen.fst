@@ -178,8 +178,6 @@ let primitive_to_opcode (p: primitive) : opcode =
   | PRIM_EmitByte -> op_emit
   | PRIM_ReadByte -> op_read
   | PRIM_EmitGrapheme -> op_emit_graph
-  | PRIM_TextToUtf16 -> op_text_to_utf16
-  | PRIM_Utf16ToText -> op_utf16_to_text
   | PRIM_TextNormalizeNfc -> op_normalize_nfc
   | PRIM_TextNormalizeNfd -> op_normalize_nfd
   | PRIM_TextNormalizeNfkc -> op_normalize_nfkc

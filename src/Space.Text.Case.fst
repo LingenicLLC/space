@@ -7,6 +7,8 @@ open FStar.List.Tot
 open Space.Text.Types
 open Space.Text.UTF8
 open Space.Text.Create
+open Space.Text.UCD.Types
+open Space.Text.UCD.Case
 
 (** Case mapping type *)
 type case_type =
@@ -31,48 +33,17 @@ noeq type special_case_mapping = {
   titlecase: list nat;
 }
 
-(** Get simple uppercase mapping (placeholder - uses UCD tables) *)
+(** Get simple uppercase mapping using UCD tables *)
 let simple_uppercase (cp: nat) : nat =
-  (* ASCII range *)
-  if cp >= 0x61 && cp <= 0x7A then cp - 32  (* a-z -> A-Z *)
-  (* Latin-1 Supplement *)
-  else if cp >= 0xE0 && cp <= 0xF6 then cp - 32  (* à-ö -> À-Ö *)
-  else if cp >= 0xF8 && cp <= 0xFE then cp - 32  (* ø-þ -> Ø-Þ *)
-  (* Latin Extended-A (selected) *)
-  else if cp = 0x0101 then 0x0100  (* ā -> Ā *)
-  else if cp = 0x0103 then 0x0102  (* ă -> Ă *)
-  else if cp = 0x0105 then 0x0104  (* ą -> Ą *)
-  else if cp = 0x0107 then 0x0106  (* ć -> Ć *)
-  else if cp = 0x0109 then 0x0108  (* ĉ -> Ĉ *)
-  (* Greek (selected) *)
-  else if cp >= 0x03B1 && cp <= 0x03C1 then cp - 32  (* α-ρ -> Α-Ρ *)
-  else if cp >= 0x03C3 && cp <= 0x03C9 then cp - 32  (* σ-ω -> Σ-Ω *)
-  else if cp = 0x03C2 then 0x03A3  (* ς (final sigma) -> Σ *)
-  (* Cyrillic (selected) *)
-  else if cp >= 0x0430 && cp <= 0x044F then cp - 32  (* а-я -> А-Я *)
-  (* German sharp s *)
-  else if cp = 0x00DF then cp  (* ß - special case, handled separately *)
-  else cp  (* No mapping *)
+  match lookup_mapping cp uppercase_mappings with
+  | Some mapped -> mapped
+  | None -> cp  (* No mapping = identity *)
 
-(** Get simple lowercase mapping (placeholder - uses UCD tables) *)
+(** Get simple lowercase mapping using UCD tables *)
 let simple_lowercase (cp: nat) : nat =
-  (* ASCII range *)
-  if cp >= 0x41 && cp <= 0x5A then cp + 32  (* A-Z -> a-z *)
-  (* Latin-1 Supplement *)
-  else if cp >= 0xC0 && cp <= 0xD6 then cp + 32  (* À-Ö -> à-ö *)
-  else if cp >= 0xD8 && cp <= 0xDE then cp + 32  (* Ø-Þ -> ø-þ *)
-  (* Latin Extended-A (selected) *)
-  else if cp = 0x0100 then 0x0101  (* Ā -> ā *)
-  else if cp = 0x0102 then 0x0103  (* Ă -> ă *)
-  else if cp = 0x0104 then 0x0105  (* Ą -> ą *)
-  else if cp = 0x0106 then 0x0107  (* Ć -> ć *)
-  else if cp = 0x0108 then 0x0109  (* Ĉ -> ĉ *)
-  (* Greek (selected) *)
-  else if cp >= 0x0391 && cp <= 0x03A1 then cp + 32  (* Α-Ρ -> α-ρ *)
-  else if cp >= 0x03A3 && cp <= 0x03A9 then cp + 32  (* Σ-Ω -> σ-ω *)
-  (* Cyrillic (selected) *)
-  else if cp >= 0x0410 && cp <= 0x042F then cp + 32  (* А-Я -> а-я *)
-  else cp  (* No mapping *)
+  match lookup_mapping cp lowercase_mappings with
+  | Some mapped -> mapped
+  | None -> cp  (* No mapping = identity *)
 
 (** Get simple titlecase mapping (usually same as uppercase) *)
 let simple_titlecase (cp: nat) : nat =
@@ -96,34 +67,37 @@ let is_uppercase (cp: nat) : bool =
 let is_lowercase (cp: nat) : bool =
   has_case cp && simple_lowercase cp = cp
 
-(** Get full uppercase mapping (may expand to multiple codepoints) *)
+(** Lookup special casing entry *)
+let rec lookup_special_casing (cp: nat) (table: list special_case_entry) : option special_case_entry =
+  match table with
+  | [] -> None
+  | entry :: rest ->
+    if entry.codepoint = cp then Some entry
+    else lookup_special_casing cp rest
+
+(** Get full uppercase mapping using UCD special casing table *)
 let full_uppercase (cp: nat) : list nat =
-  (* German sharp s expands *)
-  if cp = 0x00DF then [0x0053; 0x0053]  (* ß -> SS *)
-  (* Turkish dotted i *)
-  else if cp = 0x0069 then [0x0049]  (* i -> I (default, not Turkish) *)
-  (* Ligatures *)
-  else if cp = 0xFB00 then [0x0046; 0x0046]  (* ff -> FF *)
-  else if cp = 0xFB01 then [0x0046; 0x0049]  (* fi -> FI *)
-  else if cp = 0xFB02 then [0x0046; 0x004C]  (* fl -> FL *)
-  else if cp = 0xFB03 then [0x0046; 0x0046; 0x0049]  (* ffi -> FFI *)
-  else if cp = 0xFB04 then [0x0046; 0x0046; 0x004C]  (* ffl -> FFL *)
-  else [simple_uppercase cp]
+  match lookup_special_casing cp special_casing_table with
+  | Some entry ->
+    if Cons? entry.upper then entry.upper
+    else [simple_uppercase cp]
+  | None -> [simple_uppercase cp]
 
-(** Get full lowercase mapping *)
+(** Get full lowercase mapping using UCD special casing table *)
 let full_lowercase (cp: nat) : list nat =
-  (* Capital I with dot *)
-  if cp = 0x0130 then [0x0069; 0x0307]  (* İ -> i + combining dot *)
-  else [simple_lowercase cp]
+  match lookup_special_casing cp special_casing_table with
+  | Some entry ->
+    if Cons? entry.lower then entry.lower
+    else [simple_lowercase cp]
+  | None -> [simple_lowercase cp]
 
-(** Get full titlecase mapping *)
+(** Get full titlecase mapping using UCD special casing table *)
 let full_titlecase (cp: nat) : list nat =
-  (* Digraph titlecase *)
-  if cp = 0x01C4 then [0x01C5]  (* DŽ -> Dž *)
-  else if cp = 0x01C7 then [0x01C8]  (* LJ -> Lj *)
-  else if cp = 0x01CA then [0x01CB]  (* NJ -> Nj *)
-  else if cp = 0x01F1 then [0x01F2]  (* DZ -> Dz *)
-  else [simple_titlecase cp]
+  match lookup_special_casing cp special_casing_table with
+  | Some entry ->
+    if Cons? entry.title then entry.title
+    else [simple_titlecase cp]
+  | None -> [simple_titlecase cp]
 
 (** Extract codepoints from UTF-8 bytes *)
 let rec bytes_to_codepoints (bytes: list UInt8.t) : Tot (list nat) (decreases (length bytes)) =
@@ -187,35 +161,146 @@ let text_to_lower (t: text) : option text =
   let bytes = codepoints_to_bytes lower_cps in
   text_from_bytes bytes
 
+(** Check if codepoint is a word boundary character (simplified UAX #29) *)
+let is_word_boundary (cp: nat) : bool =
+  (* Whitespace *)
+  cp = 0x20 || cp = 0x09 || cp = 0x0A || cp = 0x0D || cp = 0x0B || cp = 0x0C ||
+  (* No-break space *)
+  cp = 0xA0 || cp = 0x2007 || cp = 0x202F ||
+  (* Various spaces *)
+  (cp >= 0x2000 && cp <= 0x200A) ||
+  (* Line/paragraph separators *)
+  cp = 0x2028 || cp = 0x2029 ||
+  (* Punctuation as word boundaries *)
+  cp = 0x2D || cp = 0x2014 || cp = 0x2013 ||  (* Hyphens, dashes *)
+  cp = 0x27 || cp = 0x2019 ||                   (* Apostrophes - usually not boundaries, but common *)
+  (* Common punctuation *)
+  cp = 0x2E || cp = 0x2C || cp = 0x3B || cp = 0x3A ||  (* . , ; : *)
+  cp = 0x21 || cp = 0x3F ||                             (* ! ? *)
+  cp = 0x28 || cp = 0x29 ||                             (* ( ) *)
+  cp = 0x5B || cp = 0x5D ||                             (* [ ] *)
+  cp = 0x7B || cp = 0x7D ||                             (* { } *)
+  cp = 0x22 || cp = 0x201C || cp = 0x201D ||            (* Quotes *)
+  cp = 0x2F || cp = 0x5C                                (* / \ *)
+
+(** Check if character continues a word (letters and apostrophes) *)
+let is_word_continue (cp: nat) : bool =
+  has_case cp ||
+  cp = 0x27 || cp = 0x2019 ||  (* Apostrophe can be mid-word *)
+  (cp >= 0x30 && cp <= 0x39)   (* Digits can be in words *)
+
 (** Convert text to titlecase (first letter of each word) *)
 let text_to_title (t: text) : option text =
   let cps = bytes_to_codepoints t.data in
-  (* Simple titlecase: uppercase first, lowercase rest *)
-  (* Real implementation would use word boundaries from UAX #29 *)
-  let rec titlecase_aux (cps: list nat) (at_start: bool) : list nat =
+  (* Titlecase: uppercase first cased letter after word boundary, lowercase rest *)
+  let rec titlecase_aux (cps: list nat) (at_word_start: bool) : list nat =
     match cps with
     | [] -> []
     | cp :: rest ->
-      let is_letter = has_case cp in
-      let is_space = cp = 0x20 || cp = 0x09 || cp = 0x0A || cp = 0x0D in
-      if at_start && is_letter then
+      let is_cased = has_case cp in
+      let is_boundary = is_word_boundary cp in
+      let continues_word = is_word_continue cp in
+      if at_word_start && is_cased then
+        (* First cased letter after boundary: titlecase it *)
         full_titlecase cp @ titlecase_aux rest false
-      else if is_space then
+      else if is_boundary then
+        (* At word boundary: next cased char starts new word *)
         [cp] @ titlecase_aux rest true
-      else if is_letter then
+      else if is_cased then
+        (* Mid-word cased letter: lowercase it *)
         full_lowercase cp @ titlecase_aux rest false
+      else if continues_word then
+        (* Non-cased character that continues word (digit, apostrophe) *)
+        [cp] @ titlecase_aux rest false
       else
-        [cp] @ titlecase_aux rest at_start
+        (* Other characters: pass through, maintain word start state *)
+        [cp] @ titlecase_aux rest at_word_start
   in
   let title_cps = titlecase_aux cps true in
   let bytes = codepoints_to_bytes title_cps in
   text_from_bytes bytes
 
+(** Get case folding for a codepoint - differs from lowercase for special cases *)
+let casefold_codepoint (cp: nat) : list nat =
+  (* Special case folding mappings from CaseFolding.txt *)
+  (* These differ from simple lowercase *)
+  if cp = 0x00DF then [0x0073; 0x0073]  (* ß -> ss *)
+  else if cp = 0x0130 then [0x0069; 0x0307]  (* İ -> i + combining dot above *)
+  else if cp = 0x0149 then [0x02BC; 0x006E]  (* ʼn -> ʼn *)
+  else if cp = 0x01F0 then [0x006A; 0x030C]  (* ǰ -> j + caron *)
+  else if cp = 0x0390 then [0x03B9; 0x0308; 0x0301]  (* ΐ -> ι + diaeresis + acute *)
+  else if cp = 0x03B0 then [0x03C5; 0x0308; 0x0301]  (* ΰ -> υ + diaeresis + acute *)
+  else if cp = 0x1E96 then [0x0068; 0x0331]  (* ẖ -> h + line below *)
+  else if cp = 0x1E97 then [0x0074; 0x0308]  (* ẗ -> t + diaeresis *)
+  else if cp = 0x1E98 then [0x0077; 0x030A]  (* ẘ -> w + ring above *)
+  else if cp = 0x1E99 then [0x0079; 0x030A]  (* ẙ -> y + ring above *)
+  else if cp = 0x1E9A then [0x0061; 0x02BE]  (* ẚ -> a + right half ring *)
+  else if cp = 0x1E9E then [0x0073; 0x0073]  (* ẞ -> ss (capital sharp s) *)
+  else if cp = 0x1F50 then [0x03C5; 0x0313]  (* ὐ -> υ + comma above *)
+  else if cp = 0x1F52 then [0x03C5; 0x0313; 0x0300]  (* ὒ *)
+  else if cp = 0x1F54 then [0x03C5; 0x0313; 0x0301]  (* ὔ *)
+  else if cp = 0x1F56 then [0x03C5; 0x0313; 0x0342]  (* ὖ *)
+  else if cp = 0x1F80 then [0x1F00; 0x03B9]  (* ᾀ -> ἀι *)
+  else if cp = 0x1F81 then [0x1F01; 0x03B9]  (* ᾁ -> ἁι *)
+  else if cp = 0x1F82 then [0x1F02; 0x03B9]  (* ᾂ -> ἂι *)
+  else if cp = 0x1F83 then [0x1F03; 0x03B9]  (* ᾃ -> ἃι *)
+  else if cp = 0x1F84 then [0x1F04; 0x03B9]  (* ᾄ -> ἄι *)
+  else if cp = 0x1F85 then [0x1F05; 0x03B9]  (* ᾅ -> ἅι *)
+  else if cp = 0x1F86 then [0x1F06; 0x03B9]  (* ᾆ -> ἆι *)
+  else if cp = 0x1F87 then [0x1F07; 0x03B9]  (* ᾇ -> ἇι *)
+  else if cp = 0x1F88 then [0x1F00; 0x03B9]  (* ᾈ -> ἀι *)
+  else if cp = 0x1F89 then [0x1F01; 0x03B9]  (* ᾉ -> ἁι *)
+  else if cp = 0x1F8A then [0x1F02; 0x03B9]  (* ᾊ -> ἂι *)
+  else if cp = 0x1F8B then [0x1F03; 0x03B9]  (* ᾋ -> ἃι *)
+  else if cp = 0x1F8C then [0x1F04; 0x03B9]  (* ᾌ -> ἄι *)
+  else if cp = 0x1F8D then [0x1F05; 0x03B9]  (* ᾍ -> ἅι *)
+  else if cp = 0x1F8E then [0x1F06; 0x03B9]  (* ᾎ -> ἆι *)
+  else if cp = 0x1F8F then [0x1F07; 0x03B9]  (* ᾏ -> ἇι *)
+  else if cp = 0x1FB2 then [0x1F70; 0x03B9]  (* ᾲ -> ὰι *)
+  else if cp = 0x1FB3 then [0x03B1; 0x03B9]  (* ᾳ -> αι *)
+  else if cp = 0x1FB4 then [0x03AC; 0x03B9]  (* ᾴ -> άι *)
+  else if cp = 0x1FB6 then [0x03B1; 0x0342]  (* ᾶ *)
+  else if cp = 0x1FB7 then [0x03B1; 0x0342; 0x03B9]  (* ᾷ *)
+  else if cp = 0x1FBC then [0x03B1; 0x03B9]  (* ᾼ -> αι *)
+  else if cp = 0x1FC2 then [0x1F74; 0x03B9]  (* ῂ -> ὴι *)
+  else if cp = 0x1FC3 then [0x03B7; 0x03B9]  (* ῃ -> ηι *)
+  else if cp = 0x1FC4 then [0x03AE; 0x03B9]  (* ῄ -> ήι *)
+  else if cp = 0x1FC6 then [0x03B7; 0x0342]  (* ῆ *)
+  else if cp = 0x1FC7 then [0x03B7; 0x0342; 0x03B9]  (* ῇ *)
+  else if cp = 0x1FCC then [0x03B7; 0x03B9]  (* ῌ -> ηι *)
+  else if cp = 0x1FD2 then [0x03B9; 0x0308; 0x0300]  (* ῒ *)
+  else if cp = 0x1FD3 then [0x03B9; 0x0308; 0x0301]  (* ΐ *)
+  else if cp = 0x1FD6 then [0x03B9; 0x0342]  (* ῖ *)
+  else if cp = 0x1FD7 then [0x03B9; 0x0308; 0x0342]  (* ῗ *)
+  else if cp = 0x1FE2 then [0x03C5; 0x0308; 0x0300]  (* ῢ *)
+  else if cp = 0x1FE3 then [0x03C5; 0x0308; 0x0301]  (* ΰ *)
+  else if cp = 0x1FE4 then [0x03C1; 0x0313]  (* ῤ *)
+  else if cp = 0x1FE6 then [0x03C5; 0x0342]  (* ῦ *)
+  else if cp = 0x1FE7 then [0x03C5; 0x0308; 0x0342]  (* ῧ *)
+  else if cp = 0x1FF2 then [0x1F7C; 0x03B9]  (* ῲ -> ὼι *)
+  else if cp = 0x1FF3 then [0x03C9; 0x03B9]  (* ῳ -> ωι *)
+  else if cp = 0x1FF4 then [0x03CE; 0x03B9]  (* ῴ -> ώι *)
+  else if cp = 0x1FF6 then [0x03C9; 0x0342]  (* ῶ *)
+  else if cp = 0x1FF7 then [0x03C9; 0x0342; 0x03B9]  (* ῷ *)
+  else if cp = 0x1FFC then [0x03C9; 0x03B9]  (* ῼ -> ωι *)
+  else if cp = 0xFB00 then [0x0066; 0x0066]  (* ﬀ -> ff *)
+  else if cp = 0xFB01 then [0x0066; 0x0069]  (* ﬁ -> fi *)
+  else if cp = 0xFB02 then [0x0066; 0x006C]  (* ﬂ -> fl *)
+  else if cp = 0xFB03 then [0x0066; 0x0066; 0x0069]  (* ﬃ -> ffi *)
+  else if cp = 0xFB04 then [0x0066; 0x0066; 0x006C]  (* ﬄ -> ffl *)
+  else if cp = 0xFB05 then [0x0073; 0x0074]  (* ﬅ -> st *)
+  else if cp = 0xFB06 then [0x0073; 0x0074]  (* ﬆ -> st *)
+  else if cp = 0x017F then [0x0073]  (* ſ -> s (long s) *)
+  else
+    (* Fall back to simple lowercase for most characters *)
+    [simple_lowercase cp]
+
 (** Case-insensitive comparison (casefold both, then compare) *)
 let text_casefold (t: text) : option text =
-  (* Casefolding is similar to lowercase but with additional mappings *)
-  (* For simplicity, use lowercase as approximation *)
-  text_to_lower t
+  let cps = bytes_to_codepoints t.data in
+  let folded = List.Tot.concatMap casefold_codepoint cps in
+  let bytes = codepoints_to_bytes folded in
+  text_from_bytes bytes
 
 (** Case-insensitive equality *)
 let text_equal_ignore_case (t1 t2: text) : bool =

@@ -23,20 +23,43 @@ Space combines stack-based execution with linear types, isolated memory universe
 | **Memory operations** | ✓ Complete (cell + byte level) |
 | **Borrow/Warp ops** | ✓ Complete (fetch/store through borrows and warps) |
 | **I/O primitives** | ✓ Complete (emit/read with channel abstraction) |
-| **VM interpreter** | ◐ Modules complete, exec_prim needs wiring |
-| **Unicode tables** | ◐ Placeholder tables, Full profile needs UCD data |
+| **Bytecode decoder** | ✓ All 80 primitives decoded |
+| **VM interpreter** | ✓ All 80 primitives wired |
+| **Unicode tables** | ✓ Real UCD data (Unicode 15.0, 7325 lines) |
 | **REPL** | ✗ Not started |
 | **C extraction** | ✗ Not yet tested |
 
 ### Remaining Work
 
-1. **Wire `exec_prim`** — Memory, I/O, borrow, warp operations are implemented in separate modules but return "not implemented" in `Space.Execute.fst`. Connect the calls.
+#### 1. Primitive wiring ✓ Complete
 
-2. **Expand `prim_op`** — Bytecode has opcodes for all operations, but `Space.Instruction.fst` only defines a subset. Add nip, tuck, pick, divs, neg, min, max, and all text/borrow/warp ops.
+All 80 primitives wired in `Space.Step.fst`:
+- Stack (8), Arithmetic (9), Bitwise (6), Comparison (6)
+- Memory (8), Borrow (8), Warp (7), I/O (2)
+- Text (11), Text warp (5), Grapheme (3), Codepoint (2)
+- Normalization (4), Case (3), System (1 halt)
 
-3. **Unicode tables** — Normalization and case mapping use placeholder lookups. Full profile needs actual UCD (Unicode Character Database) tables. This is data (~85KB), not code.
+**Design decision:** UTF-16 primitives removed from instruction set — available as library functions in `Space.Text.UTF16.fst` when needed for interop, but not required as VM primitives.
 
-4. **Complex text slicing** — `text_slice_simple` only handles ASCII. Slicing text with emoji/combining characters needs grapheme index lookup.
+#### 2. I/O architecture ✓
+
+I/O uses machine-level input/output buffers (pure functional approach):
+- `step_emit` appends to `m.output` buffer
+- `step_key` reads from `m.input` buffer (returns -1 for EOF)
+
+Platform-specific I/O happens at the host level — pre-populate `m.input`, read `m.output` after execution.
+
+#### 3. Unicode tables ✓
+
+UCD data tables implemented (7,325 lines, Unicode 15.0.0):
+- Case mappings: 3,020 lines (including special casefolding: ß→ss, ligatures, Greek)
+- Decomposition: 2,083 lines (canonical)
+- Composition: 1,139 lines (canonical)
+- Combining classes: 942 lines
+
+#### 4. Dead code in Space.Execute.fst
+
+The stubs in `exec_prim` (lines 289-345) are **dead code** — `step_prim` routes all operations to proper handlers before falling through. Can be cleaned up but causes no bugs.
 
 ## What's Here
 
@@ -110,23 +133,52 @@ let return_requires_source_match (b: borrowed) (src: universe) :
 
 ## Building
 
-Requires [F*](https://www.fstar-lang.org/) and [Z3](https://github.com/Z3Prover/z3) (version 4.15.4).
+Requires [F*](https://www.fstar-lang.org/) and [Z3](https://github.com/Z3Prover/z3) (version 4.13.3 or 4.15.4).
 
 ```bash
 cd src
-make verify    # Type-check and verify all proofs
-make extract   # Generate Karamel output (requires krml)
+make verify         # Type-check and verify all proofs
+make extract-ocaml  # Extract to OCaml
+make extract-krml   # Extract to Karamel (.krml files)
+make extract-c      # Generate C via Karamel (requires krml)
 ```
+
+## Extraction Targets
+
+F* can extract verified code to multiple languages:
+
+| Target | Command | Status | Use Case |
+|--------|---------|--------|----------|
+| **OCaml** | `make extract-ocaml` | ✓ Working | REPL, prototyping, native performance |
+| **F#** | `--codegen FSharp` | ✓ Available | .NET integration |
+| **C** | `make extract-c` | ⚠ Requires Low* | Embedded systems |
+| **Wasm** | via Karamel | ⚠ Requires Low* | Browser runtime |
+
+### Low* and C Extraction
+
+C extraction via Karamel requires the **Low\*** subset of F*:
+- Machine integers (`UInt64.t`) instead of mathematical (`nat`)
+- Mutable buffers instead of immutable lists
+- Loops instead of recursion on data structures
+
+Current Space implementation uses high-level F* for verification clarity. **Roadmap:**
+
+1. **Now:** OCaml extraction (full F*, works today)
+2. **Next:** Low* core modules (stack, memory, VM loop)
+3. **Future:** Full C extraction for embedded targets
+
+The verification proofs remain in high-level F*. Low* provides the extraction path — same semantics, different representation.
 
 ## Runtime Architecture
 
-The F* implementation extracts to C via Karamel. Space programs compile to bytecode that runs on this verified runtime.
-
 ```
-program.space  →  Compiler  →  bytecode  →  VM (extracted C)
+program.space  →  Compiler  →  bytecode  →  VM (extracted OCaml/C)
 ```
 
-**Runtime sizes:**
+**Current:** OCaml extraction provides native-compiled runtime.
+**Planned:** C extraction for embedded (requires Low* rewrite of core).
+
+**Target runtime sizes (C extraction):**
 
 | Profile | Includes | Binary |
 |---------|----------|--------|
@@ -164,6 +216,12 @@ end-universe         \ universe already gone
 - [spacelang.org/philosophy](https://spacelang.org/philosophy/) — Design philosophy
 - [spacelang.org/heritage](https://spacelang.org/heritage/) — Intellectual lineage
 
+## Applications
+
+- [Applications of Verified Isolation](applications/APPLICATIONS.md) — What the combination enables
+- [Parallel Universe Execution](applications/PARALLEL-UNIVERSES.md) — Safe parallelism from isolation
+- [Unicode at the Systems Level](applications/UNICODE-SYSTEMS.md) — Grapheme-correct text on embedded systems
+
 ## Heritage
 
 Space synthesizes ideas from:
@@ -182,7 +240,7 @@ Apache 2.0. See [LICENSE](LICENSE).
 
 ## Author
 
-Created by [Danslav Slavenskoj](https://github.com/slavenskoj). Design conceived summer 2025, first implemented in F* 2026-02-10.
+Created by [Danslav Slavenskoj](https://github.com/slavenskoj). Design conceived summer 2025, first implemented 2026-02-10.
 
 ---
 

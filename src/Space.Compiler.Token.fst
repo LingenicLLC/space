@@ -140,9 +140,6 @@ type primitive =
   | PRIM_EmitByte      (* emit-byte *)
   | PRIM_ReadByte      (* read-byte *)
   | PRIM_EmitGrapheme  (* emit-grapheme *)
-  (* Full profile: UTF-16 *)
-  | PRIM_TextToUtf16   (* text-to-utf16 *)
-  | PRIM_Utf16ToText   (* utf16-to-text *)
   (* Full profile: Normalization *)
   | PRIM_TextNormalizeNfc  (* text-normalize-nfc *)
   | PRIM_TextNormalizeNfd  (* text-normalize-nfd *)
@@ -293,9 +290,6 @@ let string_to_primitive (s: string) : option primitive =
   else if s = "emit-byte" then Some PRIM_EmitByte
   else if s = "read-byte" then Some PRIM_ReadByte
   else if s = "emit-grapheme" then Some PRIM_EmitGrapheme
-  (* UTF-16 *)
-  else if s = "text-to-utf16" then Some PRIM_TextToUtf16
-  else if s = "utf16-to-text" then Some PRIM_Utf16ToText
   (* Normalization *)
   else if s = "text-normalize-nfc" then Some PRIM_TextNormalizeNfc
   else if s = "text-normalize-nfd" then Some PRIM_TextNormalizeNfd

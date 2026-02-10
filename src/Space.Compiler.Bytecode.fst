@@ -125,10 +125,6 @@ let op_emit : opcode = 0xB1uy
 let op_read : opcode = 0xB2uy
 let op_emit_graph : opcode = 0xB3uy
 
-(** Full profile: UTF-16 0xC0-0xC7 *)
-let op_text_to_utf16 : opcode = 0xC0uy
-let op_utf16_to_text : opcode = 0xC1uy
-
 (** Full profile: Normalization 0xC8-0xCF *)
 let op_normalize_nfc : opcode = 0xC8uy
 let op_normalize_nfd : opcode = 0xC9uy
