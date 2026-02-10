@@ -244,4 +244,4 @@ Created by [Danslav Slavenskoj](https://github.com/slavenskoj). Design conceived
 
 ---
 
-*This is alpha software. Core semantics and compiler are complete; VM execution loop needs wiring. Expect breaking changes.*
+*This is alpha software. Core semantics, compiler, and VM are complete. C extraction requires Low\* rewrite. Expect breaking changes.*
