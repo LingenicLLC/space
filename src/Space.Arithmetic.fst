@@ -105,3 +105,23 @@ let stack_div_signed (s: stack) : option stack =
      | Some r -> Some (r :: xs)
      | None -> None)
   | _ -> None
+
+(** Minimum of two cells (unsigned) *)
+let min_cells (a b: cell) : cell =
+  if v a <= v b then a else b
+
+(** Maximum of two cells (unsigned) *)
+let max_cells (a b: cell) : cell =
+  if v a >= v b then a else b
+
+(** Stack operation: minimum *)
+let stack_min (s: stack) : option stack =
+  match s with
+  | a :: b :: xs -> Some (min_cells b a :: xs)
+  | _ -> None
+
+(** Stack operation: maximum *)
+let stack_max (s: stack) : option stack =
+  match s with
+  | a :: b :: xs -> Some (max_cells b a :: xs)
+  | _ -> None

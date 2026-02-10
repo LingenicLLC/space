@@ -53,3 +53,31 @@ let stack_not (s: stack) : option stack =
   match s with
   | a :: xs -> Some (bit_not a :: xs)
   | _ -> None
+
+(** Stack: shift left ( a n -- a<<n ) *)
+let stack_shl (s: stack) : option stack =
+  match s with
+  | n_cell :: a :: xs ->
+    let n = v n_cell in
+    (* Clamp shift to valid range 0-63 *)
+    let shift = if n >= 64 then 63 else n in
+    let n32 : FStar.UInt32.t = FStar.Int.Cast.uint64_to_uint32 (uint_to_t shift) in
+    if FStar.UInt32.v n32 < 64 then
+      Some (shift_left a n32 :: xs)
+    else
+      Some (0uL :: xs)  (* Shift >= 64 yields 0 *)
+  | _ -> None
+
+(** Stack: shift right ( a n -- a>>n ) *)
+let stack_shr (s: stack) : option stack =
+  match s with
+  | n_cell :: a :: xs ->
+    let n = v n_cell in
+    (* Clamp shift to valid range 0-63 *)
+    let shift = if n >= 64 then 63 else n in
+    let n32 : FStar.UInt32.t = FStar.Int.Cast.uint64_to_uint32 (uint_to_t shift) in
+    if FStar.UInt32.v n32 < 64 then
+      Some (shift_right a n32 :: xs)
+    else
+      Some (0uL :: xs)  (* Shift >= 64 yields 0 *)
+  | _ -> None

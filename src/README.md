@@ -57,7 +57,8 @@ F* source files for the Space language.
 | `Space.Compiler.Parser` | Parser: tokens → AST |
 | `Space.Compiler.Bytecode` | Bytecode instruction set (46 opcodes) |
 | `Space.Compiler.Codegen` | Code generator: AST → bytecode |
-| `Space.Compiler.Test` | 24 verification tests |
+| `Space.Compiler.Decoder` | Bytecode decoder: bytecode → instructions |
+| `Space.Compiler.Test` | 30 verification tests |
 
 See [COMPILER.md](COMPILER.md) for detailed compiler documentation.
 
@@ -75,8 +76,8 @@ make clean            # Clean build artifacts
 
 ## Status
 
-Full Profile — 40 runtime modules + 7 compiler modules = **47 verified modules**.
+Full Profile — 40 runtime modules + 8 compiler modules = **48 verified modules**.
 
 - Runtime: Core, Text, UTF-16, Normalization, Case Mapping
-- Compiler: Lexer, Parser, AST, Bytecode, Codegen, Tests
-- Tests: 24 verification tests pass (including Unicode)
+- Compiler: Lexer, Parser, AST, Bytecode, Codegen, Decoder, Tests
+- Tests: 30 verification tests pass (including Unicode and Decoder)

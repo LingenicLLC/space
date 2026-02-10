@@ -53,6 +53,7 @@ COMPILER_FILES = \
   Space.Compiler.Parser.fst \
   Space.Compiler.Bytecode.fst \
   Space.Compiler.Codegen.fst \
+  Space.Compiler.Decoder.fst \
   Space.Compiler.Test.fst
 
 .PHONY: all verify verify-compiler extract clean

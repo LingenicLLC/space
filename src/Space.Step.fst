@@ -96,3 +96,74 @@ let step_end_universe (m: machine) (name: universe_name) : step_result =
       let u' = destroy u in
       let w' = update_universe m.mworld u' in
       StepOk (advance_ip { m with mworld = w' })
+
+(** Release universe instruction *)
+let step_release_universe (m: machine) (name: universe_name) : step_result =
+  match find_by_name m.mworld name with
+  | None -> StepError (m, "universe not found")
+  | Some u ->
+    match release u with
+    | None -> StepError (m, "release failed: not affine or not live")
+    | Some u' ->
+      let w' = update_universe m.mworld u' in
+      StepOk (advance_ip { m with mworld = w' })
+
+(** Transfer to universe instruction *)
+let step_transfer (m: machine) (name: universe_name) : step_result =
+  match current_universe m with
+  | None -> StepError (m, "no current universe")
+  | Some src ->
+    match find_by_name m.mworld name with
+    | None -> StepError (m, "target universe not found")
+    | Some dst ->
+      match src.stack with
+      | [] -> StepError (m, "transfer: stack underflow")
+      | v :: rest ->
+        let src' = { src with stack = rest } in
+        let dst' = { dst with stack = v :: dst.stack } in
+        let w' = update_universe (update_universe m.mworld src') dst' in
+        StepOk (advance_ip { m with mworld = w' })
+
+(** Execute one instruction *)
+let step_one (m: machine) (instr: instruction) : step_result =
+  match instr with
+  | IPush v -> step_push m v
+  | ICall target -> step_call m target
+  | IReturn -> step_return m
+  | IPrimitive op -> step_prim m op
+  | IBranch target -> step_branch m target
+  | IBranchZero target -> step_branch_zero m target
+  | IBranchNonZero target -> step_branch_nonzero m target
+  | ICreateUniverse (name, disc) -> step_create_universe m name 1024 disc
+  | IEndUniverse name -> step_end_universe m name
+  | IReleaseUniverse name -> step_release_universe m name
+  | ITransferTo name -> step_transfer m name
+
+(** Fetch instruction at current IP from program *)
+let fetch_instr (prog: list instruction) (ip: ip) : option instruction =
+  let idx = FStar.UInt64.v ip in
+  if idx < List.Tot.length prog then List.Tot.nth prog idx
+  else None
+
+(** Run execution loop with fuel *)
+let rec run_loop (m: machine) (prog: list instruction) (fuel: nat)
+  : Tot step_result (decreases fuel) =
+  if fuel = 0 then StepError (m, "fuel exhausted")
+  else if not m.running then StepOk m
+  else
+    match fetch_instr prog m.inst_ptr with
+    | None -> StepError (m, "invalid instruction pointer")
+    | Some instr ->
+      match step_one m instr with
+      | StepOk m' -> run_loop m' prog (fuel - 1)
+      | StepHalt m' -> StepHalt m'
+      | StepError (m', msg) -> StepError (m', msg)
+
+(** Run a program from initial state *)
+let run_program (prog: list instruction) (fuel: nat) : step_result =
+  let m = { initial_machine with running = true } in
+  (* Create default data universe *)
+  let (w', _) = create_universe m.mworld "data" 65536 Unrestricted in
+  match set_current w' "data" with
+  | None -> StepError (m, "failed to set current universe")
+  | Some w'' -> run_loop { m with mworld = w'' } prog fuel

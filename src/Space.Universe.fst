@@ -4,18 +4,20 @@ module Space.Universe
 
 open Space.Types
 open Space.Stack
+open Space.Memory
 
 (** Universe state *)
 type universe_state =
   | Live
   | Destroyed
 
-(** A universe contains a stack, discipline, and state *)
+(** A universe contains a stack, memory, discipline, and state *)
 noeq type universe = {
   id: universe_id;
   name: universe_name;
   discipline: discipline;
   stack: stack;
+  memory: memory;
   capacity: nat;
   state: universe_state;
 }
@@ -26,6 +28,7 @@ let create (id: universe_id) (name: universe_name) (cap: nat) (disc: discipline)
   name = name;
   discipline = disc;
   stack = empty;
+  memory = empty_memory;
   capacity = cap;
   state = Live;
 }

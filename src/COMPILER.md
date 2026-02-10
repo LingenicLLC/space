@@ -33,6 +33,20 @@ A verified compiler for the Space programming language, implemented entirely in 
 │  Bytecode   │  Space.Compiler.Bytecode
 │  Module     │  - 46 opcodes
 └─────────────┘
+    │
+    ▼
+┌─────────────┐
+│  Decoder    │  Space.Compiler.Decoder
+│  bytecode → │  - Decodes to instructions
+│  instrs     │  - Feeds existing interpreter
+└─────────────┘
+    │
+    ▼
+┌─────────────┐
+│ Interpreter │  Space.Interpreter + Space.Execute
+│  instrs →   │  - Executes instructions
+│  results    │  - Verified semantics
+└─────────────┘
 ```
 
 ## Modules
@@ -45,7 +59,8 @@ A verified compiler for the Space programming language, implemented entirely in 
 | `Space.Compiler.Parser` | ~450 | Recursive descent parser |
 | `Space.Compiler.Bytecode` | ~240 | Bytecode format and opcodes |
 | `Space.Compiler.Codegen` | ~390 | Code generator |
-| `Space.Compiler.Test` | ~285 | 24 verification tests |
+| `Space.Compiler.Decoder` | ~335 | Bytecode decoder |
+| `Space.Compiler.Test` | ~355 | 30 verification tests |
 
 ## Bytecode Opcodes
 
@@ -151,7 +166,7 @@ Function: double
 
 ## Tests
 
-24 verification tests cover:
+30 verification tests cover:
 
 | Category | Tests |
 |----------|-------|
@@ -159,6 +174,7 @@ Function: double
 | Parser | Words, constants, text, if, if-else, loop, while |
 | Codegen | Simple words, multiple words, strings, full pipeline |
 | Unicode | \xXX, \uXXXX, \UXXXXXXXX escapes, mixed escapes |
+| Decoder | Simple bytecode, push, branches, comparisons, full pipeline |
 
 All tests are verified by F*'s type system at compile time.
 
@@ -209,7 +225,7 @@ The F* type system ensures:
 
 ## Future Work
 
-- [ ] VM interpreter (execute bytecode)
+- [x] Bytecode decoder (connects to existing interpreter)
 - [ ] Forward reference resolution (backpatching)
 - [ ] Optimization passes
 - [ ] Debug info generation

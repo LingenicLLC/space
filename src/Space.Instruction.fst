@@ -16,12 +16,19 @@ type prim_op =
   | PrimSwap
   | PrimOver
   | PrimRot
+  | PrimNip
+  | PrimTuck
+  | PrimPick
   (* Arithmetic *)
   | PrimAdd
   | PrimSub
   | PrimMul
   | PrimDivU
+  | PrimDivS
   | PrimMod
+  | PrimNeg
+  | PrimMin
+  | PrimMax
   (* Bitwise *)
   | PrimAnd
   | PrimOr
@@ -34,10 +41,18 @@ type prim_op =
   | PrimNeq
   | PrimLtU
   | PrimGtU
-  (* Memory *)
+  | PrimLtS
+  | PrimGtS
+  (* Memory - cell level *)
   | PrimFetch
   | PrimStore
   | PrimAlloc
+  (* Memory - byte level *)
+  | PrimBytesAlloc
+  | PrimBytesFetch
+  | PrimBytesStore
+  | PrimBytesLen
+  | PrimBytesCopy
   (* System *)
   | PrimEmit
   | PrimKey
