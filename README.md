@@ -6,22 +6,22 @@ Space combines stack-based execution with linear types, isolated memory universe
 
 ## Status: v0.8 alpha
 
-| Component                | Status                  |
-| ------------------------ | ----------------------- |
-| **Core types & stack**   | ✓ Complete, verified    |
-| **Discipline system**    | ✓ Complete, verified    |
-| **Universe lifecycle**   | ✓ Complete, verified    |
-| **Borrow system**        | ✓ Complete, verified    |
-| **Warp traversal**       | ✓ Complete, verified    |
-| **Arithmetic & bitwise** | ✓ Complete, verified    |
-| **Control flow**         | ✓ Complete              |
-| **VM execution loop**    | ✓ Complete              |
-| **Memory operations**    | ◐ Defined, not wired up |
-| **I/O primitives**       | ◐ Defined, not wired up |
-| **Text/Unicode**         | ✓ Complete, verified    |
-| **Parser**               | ✗ Missing               |
-| **REPL**                 | ✗ Missing               |
-| **C extraction**         | ✗ Not yet tested        |
+| Component | Status |
+|-----------|--------|
+| **Core types & stack** | ✓ Complete, verified |
+| **Discipline system** | ✓ Complete, verified |
+| **Universe lifecycle** | ✓ Complete, verified |
+| **Borrow system** | ✓ Complete, verified |
+| **Warp traversal** | ✓ Complete, verified |
+| **Arithmetic & bitwise** | ✓ Complete, verified |
+| **Control flow** | ✓ Complete |
+| **VM execution loop** | ✓ Complete |
+| **Memory operations** | ◐ Defined, not wired up |
+| **I/O primitives** | ◐ Defined, not wired up |
+| **Text/Unicode** | ✓ Complete, verified |
+| **Parser** | ✗ Missing |
+| **REPL** | ✗ Missing |
+| **C extraction** | ✗ Not yet tested |
 
 ## What's Here
 
