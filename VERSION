@@ -13,8 +13,8 @@ Total:          70
 
 Primitives
 ----------
-Total:          80
-Implemented:    80
+Total:          84
+Implemented:    84
 Stubs:          0
 
   Stack:        8   (dup, drop, swap, over, rot, nip, tuck, pick)
@@ -58,7 +58,7 @@ Run 'make gen-headers' to regenerate.
 Build
 -----
 make verify           # Verify runtime (47 modules)
-make verify-compiler  # Verify all (61 modules)
+make verify-compiler  # Verify all (70 modules)
 make gen-headers      # Generate C runtime headers
 make spacec           # Build compiler
 
