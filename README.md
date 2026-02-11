@@ -130,10 +130,11 @@ procedure Dup (S : in Out Stack)
 
 ### 3.3 Trusted Computing Base
 
-- Space compiler (emits SPARK/Ada)
 - GNATprove (verifies contracts)
 - GNAT (compiles to native)
 - Hardware
+
+The Space compiler is itself written in SPARK/Ada and verified by GNATprove — it's not part of the TCB.
 
 ---
 
