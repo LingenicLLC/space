@@ -73,10 +73,16 @@ COMPILER_FILES = \
   Space.Compiler.Parser.fst \
   Space.Compiler.Bytecode.fst \
   Space.Compiler.Codegen.fst \
+  Space.Compiler.CGen.fst \
+  Space.Compiler.CGen.UCD.fst \
+  Space.Compiler.CGen.Runtime.fst \
   Space.Compiler.Decoder.fst \
-  Space.Compiler.Test.fst
+  Space.Compiler.Test.fst \
+  Space.Compiler.Main.fst \
+  Space.Compiler.GenUCD.fst \
+  Space.Compiler.GenRuntime.fst
 
-.PHONY: all verify verify-core verify-compiler extract extract-c repl clean
+.PHONY: all verify verify-core verify-compiler extract-ocaml extract-fsharp extract-krml extract-c build-fsharp clean
 
 all: verify
 
@@ -100,6 +106,20 @@ extract-ocaml:
 	$(FSTAR) $(FSTAR_FLAGS) --odir _output/ocaml --codegen OCaml $(SPACE_FILES)
 	@echo "OCaml files in _output/ocaml/"
 
+# Extract to F#
+extract-fsharp:
+	mkdir -p _output/fsharp
+	$(FSTAR) $(FSTAR_FLAGS) --odir _output/fsharp --codegen FSharp $(SPACE_FILES)
+	@echo "F# files in _output/fsharp/"
+
+# Build F# project (creates .NET IL bytecode)
+build-fsharp: extract-fsharp
+	@if [ ! -f _output/fsharp/Space.fsproj ]; then \
+		cd _output/fsharp && dotnet new classlib -lang F# -n Space -o . --force; \
+	fi
+	cd _output/fsharp && dotnet build
+	@echo "Built _output/fsharp/bin/"
+
 # Extract to Karamel (.krml files) - requires karamel
 extract-krml:
 	mkdir -p _output/krml
@@ -122,6 +142,44 @@ repl: extract-ocaml
 		-I +zarith \
 		*.ml -o space-repl
 	@echo "Built _output/ocaml/space-repl"
+
+# Build spacec compiler (OCaml)
+spacec: extract-compiler-ocaml
+	cd _output/ocaml-compiler && \
+		ocamlfind ocamlopt -package zarith -linkpkg \
+		-I +zarith \
+		*.ml -o spacec
+	@echo "Built _output/ocaml-compiler/spacec"
+	@echo "Usage: ./spacec input.space > output.c"
+
+# Extract compiler to OCaml
+extract-compiler-ocaml:
+	mkdir -p _output/ocaml-compiler
+	$(FSTAR) $(FSTAR_FLAGS) --odir _output/ocaml-compiler --codegen OCaml \
+		$(SPACE_FILES) $(COMPILER_FILES)
+	@echo "OCaml compiler files in _output/ocaml-compiler/"
+
+# Generate UCD header from F* (verified generation)
+gen-ucd: extract-compiler-ocaml
+	cd _output/ocaml-compiler && \
+		ocamlfind ocamlopt -package zarith -linkpkg \
+		-I +zarith \
+		*.ml -o gen-ucd
+	./_output/ocaml-compiler/gen-ucd > runtime/space_ucd_full.h
+	@echo "Generated runtime/space_ucd_full.h from F*"
+
+# Generate runtime header from F* (verified generation)
+gen-runtime: extract-compiler-ocaml
+	cd _output/ocaml-compiler && \
+		ocamlfind ocamlopt -package zarith -linkpkg \
+		-I +zarith \
+		*.ml -o gen-runtime
+	./_output/ocaml-compiler/gen-runtime > runtime/space_runtime.h
+	@echo "Generated runtime/space_runtime.h from F*"
+
+# Generate all runtime headers
+gen-headers: gen-ucd gen-runtime
+	@echo "All runtime headers generated from F*"
 
 # Extract compiler to C
 extract-compiler:
