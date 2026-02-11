@@ -9,6 +9,7 @@ open Space.Compiler.Lexer
 open Space.Compiler.Parser
 open Space.Compiler.AST
 open Space.Compiler.CGen
+open Space.Compiler.Keywords
 
 (** Print usage information *)
 let print_usage () : ML unit =
@@ -16,6 +17,8 @@ let print_usage () : ML unit =
   print_string "Options:\n";
   print_string "  --target c     Generate C code (default)\n";
   print_string "  --target bc    Generate bytecode\n";
+  print_string "  --lang <code>  Keyword language (default: all)\n";
+  print_string "                 en, ja, ko, ru, sa, zh, zh-Hant, lzh, all\n";
   print_string "  -o <file>      Write output to file\n";
   print_string "  --help         Show this help\n"
 
@@ -59,6 +62,7 @@ noeq type compiler_options = {
   input_file: option string;
   output_file: option string;
   target: string;
+  lang: lang;
   show_help: bool;
 }
 
@@ -66,6 +70,7 @@ let default_options : compiler_options = {
   input_file = None;
   output_file = None;
   target = "c";
+  lang = Lang_All;  (* Safe: hyphenated keywords don't collide with user words *)
   show_help = false;
 }
 
@@ -75,6 +80,10 @@ let rec parse_args_aux (args: list string) (opts: compiler_options) : compiler_o
   | "--help" :: rest -> parse_args_aux rest { opts with show_help = true }
   | "-h" :: rest -> parse_args_aux rest { opts with show_help = true }
   | "--target" :: t :: rest -> parse_args_aux rest { opts with target = t }
+  | "--lang" :: l :: rest ->
+    (match lang_of_string l with
+     | Some lang -> parse_args_aux rest { opts with lang = lang }
+     | None -> parse_args_aux rest opts)
   | "-o" :: f :: rest -> parse_args_aux rest { opts with output_file = Some f }
   | arg :: rest ->
     if FStar.String.length arg > 0 then

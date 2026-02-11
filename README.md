@@ -55,10 +55,6 @@ F* Modules:           61 total
 Generated C:
   space_runtime.h:    ~240 lines (inline primitives)
   space_ucd_full.h:   ~200KB (Unicode 15.0 tables)
-
-Reference VM:
-  C++23 implementation with all 80 opcodes
-  Full Unicode support (UAX #29, NFC/NFD)
 ```
 
 ### 2.2 Compilation Pipeline
