@@ -8,17 +8,26 @@
 
 ---
 
-Space is a verified concatenative systems programming language. The implementation is in SPARK/Ada with 89 primitives, full Unicode 15.0 support, and Pre/Post contracts verified by GNATprove.
+Space is a verified concatenative systems programming language that compiles to SPARK/Ada.
 
-- **Multiverse model** — isolated memory regions called universes
-- **Discipline system** — linear, affine, and unrestricted value tracking
-- **Borrowing** — safe temporary access to memory
-- **Warps** — structured traversal of memory regions
-- **Native Unicode** — grapheme-aware text with full normalization
+```
+C       →  Assembly  →  machine code
+Space   →  SPARK/Ada →  native binary
+```
+
+Space provides high-level abstractions — universes, disciplines, borrowing, warps — that compile down to verified SPARK/Ada code. GNATprove verifies the contracts. GNAT compiles to native binaries. The `spark/` directory contains the **runtime library** that Space programs compile against, like libc for C.
 
 ---
 
 ## 1. What Space Is
+
+Space adds to the Forth model:
+
+- **Universes** — isolated memory regions (spatial safety)
+- **Disciplines** — linear, affine, unrestricted types (temporal safety)
+- **Borrowing** — safe cross-universe access
+- **Warps** — structured traversal without pointer escape
+- **Native Unicode** — grapheme-aware text with normalization
 
 ### Core Concepts
 
@@ -36,32 +45,40 @@ Space is a verified concatenative systems programming language. The implementati
 
 ---
 
-## 2. Implementation
+## 2. Architecture
 
-### 2.1 Directory Structure
+### 2.1 Compilation Model
 
 ```
-spark/              # Active implementation (SPARK/Ada)
-├── src/            # 49 source files
+example.space  →  Space compiler  →  example.adb  →  GNATprove  →  GNAT  →  binary
+                                          ↓
+                                   spark/src/*.ads  (runtime library)
+```
+
+The Space compiler emits SPARK/Ada that calls into the runtime. GNATprove verifies contracts. GNAT compiles to native.
+
+### 2.2 Directory Structure
+
+```
+spark/              # Runtime library (SPARK/Ada)
+├── src/            # 49 source files — primitives with contracts
 ├── ucd/            # Unicode Character Database 15.0
-├── tools/          # Build tools (Ada)
+├── tools/          # UCD table generator (Ada)
 └── space.gpr       # GNAT project file
 
-fstar/              # Frozen (historical)
-├── Space.*.fst     # F* modules
-└── ucd/            # Unicode data
+fstar/              # Frozen (historical F* prototype)
 ```
 
-### 2.2 SPARK/Ada Implementation
+### 2.3 Runtime Library
 
 ```
 Source files:     49 total
-Primitives:       89
-Verification:     GNATprove Pre/Post contracts
+Primitives:       89 (with Pre/Post contracts)
+Verification:     GNATprove
 Compiler:         GNAT (GCC or LLVM backend)
 ```
 
-### 2.3 Build
+### 2.4 Build
 
 ```bash
 # Build runtime and compiler
@@ -71,7 +88,7 @@ gprbuild -P spark/space.gpr
 gnatprove -P spark/space.gpr --level=2
 ```
 
-### 2.4 Unicode Support
+### 2.5 Unicode Support
 
 Complete Unicode 15.0:
 
@@ -113,8 +130,9 @@ procedure Dup (S : in Out Stack)
 
 ### 3.3 Trusted Computing Base
 
-- GNAT compiler
-- GNATprove verifier
+- Space compiler (emits SPARK/Ada)
+- GNATprove (verifies contracts)
+- GNAT (compiles to native)
 - Hardware
 
 ---
@@ -158,15 +176,11 @@ procedure Dup (S : in Out Stack)
 | Linear Logic (1987) | Discipline system           |
 | StrongForth (2003)  | Static typing for Forth     |
 | Rust (2010)         | Borrowing semantics         |
-| SPARK/Ada           | Verification infrastructure |
+| SPARK/Ada (1988)    | Compilation target          |
 
-Forth has proven real-world viability:
+**Why SPARK/Ada as target?** Same reason C targets assembly: it's the right level of abstraction. SPARK provides verified systems programming. Space provides higher-level constructs (universes, disciplines) that compile down to it. No extraction gap — the verified code is the production code.
 
-- **Open Firmware:** Sun, IBM AIX, PowerPC Mac (IEEE 1275)
-- **Spacecraft:** Philae lander, NASA deep-space missions
-- **Device Tree:** Lives on in every Linux ARM system
-
-Space inherits this minimalism and adds what Forth lacked: static types, linear resources, machine-checked proofs.
+**Forth heritage:** Open Firmware (IEEE 1275), Philae lander, NASA deep-space missions. Space inherits the minimalism and adds what Forth lacked: static types, linear resources, machine-checked proofs.
 
 ---
 
