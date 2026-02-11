@@ -4,7 +4,7 @@
 
 **Date:** 2026-02-11
 **Version:** 0.9 alpha
-**Status:** SPARK/Ada implementation complete
+**Status:** SPARK/Ada implementation in progress
 
 ---
 
