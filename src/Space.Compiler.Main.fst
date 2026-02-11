@@ -1,7 +1,7 @@
 module Space.Compiler.Main
 
 (** Main driver for the Space compiler
-    Compiles .space source files to C code *)
+    Compiles .space source files to various backends *)
 
 open FStar.IO
 open FStar.All
@@ -9,12 +9,15 @@ open Space.Compiler.Lexer
 open Space.Compiler.Parser
 open Space.Compiler.AST
 open Space.Compiler.CGen
+open Space.Compiler.CGen.Common
 open Space.Compiler.Keywords
 
 (** Print usage information *)
 let print_usage () : ML unit =
   print_string "Usage: spacec [options] <input.space>\n";
   print_string "Options:\n";
+  print_string "  --backend <be> Code generation backend (default: c99)\n";
+  print_string "                 c99, c23, c++, forth\n";
   print_string "  --target c     Generate C code (default)\n";
   print_string "  --target bc    Generate bytecode\n";
   print_string "  --lang <code>  Keyword language (default: all)\n";
@@ -62,6 +65,7 @@ noeq type compiler_options = {
   input_file: option string;
   output_file: option string;
   target: string;
+  backend: backend;
   lang: lang;
   show_help: bool;
 }
@@ -70,6 +74,7 @@ let default_options : compiler_options = {
   input_file = None;
   output_file = None;
   target = "c";
+  backend = default_backend;  (* C99 *)
   lang = Lang_All;  (* Safe: hyphenated keywords don't collide with user words *)
   show_help = false;
 }
@@ -80,6 +85,10 @@ let rec parse_args_aux (args: list string) (opts: compiler_options) : compiler_o
   | "--help" :: rest -> parse_args_aux rest { opts with show_help = true }
   | "-h" :: rest -> parse_args_aux rest { opts with show_help = true }
   | "--target" :: t :: rest -> parse_args_aux rest { opts with target = t }
+  | "--backend" :: b :: rest ->
+    (match backend_of_string b with
+     | Some be -> parse_args_aux rest { opts with backend = be }
+     | None -> parse_args_aux rest opts)
   | "--lang" :: l :: rest ->
     (match lang_of_string l with
      | Some lang -> parse_args_aux rest { opts with lang = lang }
@@ -119,18 +128,27 @@ let main () : ML unit =
         print_string ("Error: Cannot read file: " ^ input_path ^ "\n")
       | Some source ->
         if opts.target = "c" then
-          match compile_to_c source with
-          | Inr error ->
-            print_string ("Error: " ^ error ^ "\n")
-          | Inl c_code ->
-            match opts.output_file with
-            | None ->
-              print_string c_code
-            | Some output_path ->
-              if write_file output_path c_code then
-                print_string ("Wrote " ^ output_path ^ "\n")
-              else
-                print_string ("Error: Cannot write file: " ^ output_path ^ "\n")
+          (* Check backend support *)
+          match opts.backend with
+          | Backend_C99 ->
+            (match compile_to_c source with
+            | Inr error ->
+              print_string ("Error: " ^ error ^ "\n")
+            | Inl c_code ->
+              match opts.output_file with
+              | None ->
+                print_string c_code
+              | Some output_path ->
+                if write_file output_path c_code then
+                  print_string ("Wrote " ^ output_path ^ " (backend: c99)\n")
+                else
+                  print_string ("Error: Cannot write file: " ^ output_path ^ "\n"))
+          | Backend_C23 ->
+            print_string "Error: C23 backend not yet implemented\n"
+          | Backend_Cpp ->
+            print_string "Error: C++ backend not yet implemented\n"
+          | Backend_Forth ->
+            print_string "Error: Forth backend not yet implemented\n"
         else
           print_string ("Error: Unknown target: " ^ opts.target ^ "\n")
 

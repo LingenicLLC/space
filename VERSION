@@ -1,15 +1,15 @@
 Space Language Implementation
 =============================
 
-Version:        0.8.7
+Version:        0.9.0
 Date:           2026-02-10
 Specification:  Space Language Specification v0.8
 
 Modules
 -------
 Runtime:        47
-Compiler:       23 (includes 9 keyword modules)
-Total:          70
+Compiler:       25 (includes 9 keyword modules, 2 CGen modules)
+Total:          72
 
 Primitives
 ----------
@@ -58,7 +58,7 @@ Run 'make gen-headers' to regenerate.
 Build
 -----
 make verify           # Verify runtime (47 modules)
-make verify-compiler  # Verify all (70 modules)
+make verify-compiler  # Verify all (72 modules)
 make gen-headers      # Generate C runtime headers
 make spacec           # Build compiler
 
