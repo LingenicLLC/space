@@ -1,362 +1,182 @@
-# Space Language — SPARK Implementation
+# Space
 
-A formally verified implementation of the Space programming language in SPARK/Ada.
+A formally verifiable programming language. Proven safe at compile time. Compiles to machine code.
 
 ## Overview
 
-Space is a concatenative, stack-based language with:
-- **Universe isolation** — memory safety without garbage collection
-- **Discipline enforcement** — linear, affine, and unrestricted types
-- **Automatic parallelism** — runtime exploits isolation for parallel execution
-- **Formal verification** — all primitives have Pre/Post contracts
+Space is a concatenative language with linear resources, universe isolation, and machine-checked proofs. The compiler is written in SPARK and generates SPARK code verified by GNATprove.
 
-## Core Concepts
+```
+1024 linear create-universe as scratch
+    42 push
+    borrow-pointer from parent
+    fetch-borrowed
+    drop-pointer
+    pop
+end-universe
+```
+
+## Toolchain
+
+```
+Space source
+    │
+    ▼
+Space Compiler (written in SPARK)
+    │
+    ▼
+Generated SPARK code with contracts
+    │
+    ▼
+GNATprove (verifies via Z3/Alt-Ergo/CVC4)
+    │
+    ▼
+GNAT → native binary (bare metal capable)
+```
+
+Space compiles to [SPARK](https://en.wikipedia.org/wiki/SPARK_(programming_language)), a safety-critical language used in aerospace and mission-critical industries. [GNATprove](https://docs.adacore.com/spark2014-docs/html/ug/en/gnatprove.html) proves your program is free of entire classes of bugs. Then [GNAT](https://en.wikipedia.org/wiki/GNAT) outputs machine code for Linux, macOS, Windows, or bare metal.
+
+## Key Features
 
 ### Universes
 
-Universes are isolated memory regions with their own stacks. Pointers cannot escape their universe of origin. Cross-universe access requires explicit borrowing or warping. This provides spatial memory safety by construction.
+Isolated memory regions with their own stack, their own discipline, and their own lifetime semantics.
 
 ```
-┌─────────────┐     ┌─────────────┐
-│ Universe A  │     │ Universe B  │
-│  ┌───────┐  │     │  ┌───────┐  │
-│  │ Stack │  │     │  │ Stack │  │
-│  └───────┘  │     │  └───────┘  │
-│  ┌───────┐  │  ✗  │  ┌───────┐  │
-│  │Memory │──┼──/──┼──│Memory │  │
-│  └───────┘  │     │  └───────┘  │
-└─────────────┘     └─────────────┘
-     No pointer escape between universes
+1024 linear create-universe as scratch
+    \ This is a self-contained world
+    \ Nothing escapes. Nothing leaks in.
+end-universe scratch
 ```
+
+A universe isn't a memory pool. It's a bounded context of meaning. Pointers inside have significance. Outside, those same bits are meaningless.
+
+### Self-Destructing Linear Universes
+
+Linear universes self-destruct when their obligations are fulfilled — when the stack empties.
+
+```
+1024 linear create-universe as temp
+    42 push
+    pop        \ obligation fulfilled
+end-universe   \ universe already gone — this acknowledges it
+```
+
+No explicit free. No destructor call. No reference count hitting zero. Completion itself is the cleanup.
 
 ### Disciplines
 
-Disciplines govern value semantics:
+Substructural types applied at the container level:
 
-| Discipline | Copy | Drop | Use Case |
-|------------|------|------|----------|
-| **Unrestricted** | Yes | Yes | Integers, booleans |
-| **Affine** | No | Yes | File handles, connections |
-| **Linear** | No | No | Obligations, must-consume tokens |
+| Discipline | Copy | Drop | Universe Behavior |
+|------------|------|------|-------------------|
+| **Unrestricted** | Yes | Yes | Immortal — never destroyed |
+| **Affine** | No | Yes | Explicit release required |
+| **Linear** | No | No | Self-destructs when empty |
 
-### Borrowing
+### Warps
 
-Borrowing enables temporary cross-universe pointer access. Borrowed pointers track their source universe and must be returned before the source can be destroyed.
+Address-free navigation through data structures. You enter a data structure and navigate, but you never hold a pointer to where you are.
 
-```forth
-borrow-pointer    \ Take temporary reference
-fetch-borrowed    \ Read through borrowed pointer
-return-pointer    \ Give it back (required before source destruction)
+```
+ptr warp-into as w
+    w warp-fetch      \ read current position
+    1 w warp-advance  \ move forward
+    w warp-follow     \ follow a reference
+end-warp w            \ must close — warp is linear
 ```
 
-### Warping
+Traversal without mapping. You can explore a data structure without creating a map of where you've been.
 
-Warping provides structured traversal of data structures without exposing internal pointers. A warp maintains a current position and saved positions, enabling tree traversal with automatic backtracking.
+### O(1) Grapheme-Native Text
 
-```forth
-warp-follow       \ Descend into child structure
-warp-position     \ Save current position
-warp-restore      \ Return to saved position
-```
+Space stores grapheme clusters — what users perceive as characters — with O(1) random access.
 
-## Quick Start
+| Language | Unit | Random Access |
+|----------|------|---------------|
+| C | bytes | O(1) |
+| Java | UTF-16 code units | O(1) |
+| Python 3 | code points | O(1) |
+| Rust | bytes | O(n) for chars |
+| Swift | grapheme clusters | O(n) |
+| **Space** | **grapheme clusters** | **O(1)** |
 
-```bash
-# Build runtime and compiler
-gprbuild -P space.gpr
+A family emoji (👨‍👩‍👧‍👦) is 25 bytes in UTF-8, but 1 grapheme. Space indexes by graphemes.
 
-# Verify with GNATprove
-gnatprove -P space.gpr --level=2
+## What Gets Proven
 
-# Build and run Unicode table generator
-cd tools && gprbuild -P gen_ucd.gpr && cd ..
-./gen_ucd_main
-```
+- **No runtime errors** — No buffer overflows, no division by zero, no integer overflow
+- **Contract compliance** — Preconditions imply postconditions
+- **Data flow correctness** — No uninitialized reads, no data races
+- **Universe isolation** — Pointers cannot escape their universe
+- **Discipline compliance** — Linear values consumed exactly once
+- **Borrow safety** — Borrowed pointers tracked and dropped correctly
 
-## Directory Structure
+## Novel Features
+
+| Feature | Elsewhere | In Space |
+|---------|-----------|----------|
+| Self-destructing contexts | None | Linear universes |
+| Address-free navigation | None | Warps |
+| Grapheme text O(1) | Swift (O(n)) | O(1) random access |
+| Linear types | Rust, Clean | At container level |
+| Isolation | Erlang actors | Universes with disciplines |
+
+## Heritage
+
+Space synthesizes ideas from multiple traditions:
+
+- **Forth** — Concatenative model, dual-stack architecture, minimalism
+- **StrongForth** — Static typing for concatenative languages
+- **Linear Logic (Girard)** — Disciplines (unrestricted, affine, linear)
+- **Rust** — Borrowing, ownership-based memory safety
+- **Ada/SPARK** — Contract-based verification, certification path
+- **Clean** — Uniqueness types for safe mutation
+
+## Future: On-Target Compilation
+
+Some spacecraft run Forth — processors like the RTX2010 execute it directly. Space is designed for similar capability: a verified compiler small enough for embedded hardware.
+
+The compiler's safety guarantees are all compile-time. A minimal Space → machine code compiler (20-50KB) could run on target hardware, enabling autonomous compilation in constrained environments.
+
+## Project Structure
 
 ```
 spark/
 ├── README.md
-├── IMPLEMENTATION_PLAN.md      # Roadmap
-├── space.gpr                   # GNAT project file
-│
-├── tools/                      # Build tools (Ada)
-│   ├── gen_ucd.gpr             # Project file
-│   ├── gen_ucd.ads/adb         # Unicode table generator
-│   └── gen_ucd_main.adb        # Main program
-│
-├── ucd/                        # Unicode Character Database 15.0
-│   ├── UnicodeData.txt
-│   ├── CaseFolding.txt
-│   ├── SpecialCasing.txt
-│   ├── CompositionExclusions.txt
-│   ├── GraphemeBreakProperty.txt
-│   └── emoji-data.txt
-│
-└── src/                        # Source files
-    ├── Runtime
-    │   ├── space-types.ads/adb         # Cell, Discipline, 128-bit Grapheme
-    │   ├── space-stack.ads/adb         # Bounded stack operations
-    │   ├── space-arithmetic.ads/adb    # Math primitives
-    │   ├── space-bitwise.ads/adb       # Bit operations
-    │   ├── space-comparison.ads/adb    # Comparisons
-    │   ├── space-memory.ads/adb        # Memory access
-    │   ├── space-bytes.ads/adb         # Byte-level operations
-    │   ├── space-universe.ads/adb      # Universe lifecycle
-    │   ├── space-borrow.ads/adb        # Borrowed pointers
-    │   ├── space-warp.ads/adb          # Structured traversal
-    │   ├── space-io.ads/adb            # I/O primitives
-    │   ├── space-text.ads/adb          # Text handles
-    │   ├── space-text-cursor.ads/adb   # Grapheme iteration (UAX #29)
-    │   ├── space-text-grapheme.ads/adb # Grapheme properties
-    │   ├── space-text-codepoint.ads/adb # Code point access
-    │   ├── space-text-grapheme_break.ads/adb # UAX #29 segmentation
-    │   ├── space-text-normalize.ads/adb # NFC/NFD/NFKC/NFKD
-    │   ├── space-text-case.ads/adb     # Case mapping
-    │   ├── space-parallel.ads/adb      # Ravenscar task pool
-    │   └── space-parallel-data.ads/adb # SIMD operations
-    │
-    └── Compiler
-        ├── space-compiler.ads
-        ├── space-compiler-lexer.ads/adb
-        ├── space-compiler-parser.ads/adb
-        ├── space-compiler-ast.ads/adb
-        ├── space-compiler-codegen.ads/adb
-        └── space-compiler-main.adb
+├── src/
+│   ├── space_lexer.ads/adb
+│   ├── space_parser.ads/adb
+│   ├── space_ast.ads/adb
+│   ├── space_codegen.ads/adb
+│   └── ...
+├── runtime/
+│   ├── space_stack.ads/adb
+│   ├── space_universe.ads/adb
+│   └── ...
+├── tests/
+│   └── ...
+├── examples/
+│   └── ...
+└── Analysis/
+    └── FULL/
+        ├── SPACE-UNIQUE-FEATURES.md
+        ├── SPACE-TO-MACHINE-CODE.md
+        ├── COLORFORTH-MODERNIZATION.md
+        └── ...
 ```
-
-## Primitives (89 total)
-
-### Core Runtime — Embedded Profile (60)
-
-| Category | Count | Primitives |
-|----------|-------|------------|
-| Stack | 8 | `dup` `drop` `swap` `over` `rot` `nip` `tuck` `pick` |
-| Arithmetic | 9 | `+` `-` `*` `/` `/s` `mod` `negate` `min` `max` |
-| Bitwise | 6 | `and` `or` `xor` `not` `<<` `>>` |
-| Comparison | 6 | `=` `<>` `<` `>` `<s` `>s` |
-| Memory | 3 | `@` `!` `alloc` |
-| Bytes | 5 | `bytes-alloc` `bytes-fetch` `bytes-store` `bytes-len` `bytes-copy` |
-| Universe | 5 | `create-universe` `end-universe` `release-universe` `universe-push` `universe-pop` |
-| Borrow | 8 | `borrow-pointer` `return-pointer` `drop-pointer` `fetch-borrowed` `store-borrowed` `fetch-and-end` `store-and-end` `offset-borrowed` |
-| Warp | 7 | `warp-fetch` `warp-store` `warp-advance` `warp-follow` `warp-position` `warp-restore` `warp-null` |
-| I/O | 3 | `emit` `key` `emit-grapheme` |
-
-### Text Handling — Full Profile (+28 = 89)
-
-| Category | Count | Primitives |
-|----------|-------|------------|
-| Text | 11 | `create-text` `byte-length` `grapheme-count` `is-simple` `grapheme-at` `grapheme-first` `grapheme-last` `slice` `concat` `equal` `compare` |
-| Text Cursor | 5 | `has-grapheme` `current-grapheme` `next-grapheme` `grapheme-index` `goto-grapheme` |
-| Grapheme | 3 | `grapheme-byte-length` `grapheme-is-ascii` `grapheme-code-points` |
-| Codepoint | 2 | `code-point-count` `code-point-at` |
-| Normalize | 4 | `nfc` `nfd` `nfkc` `nfkd` |
-| Case | 3 | `to-upper` `to-lower` `to-title` |
-| System | 1 | `halt` |
-
-## Profiles
-
-| Profile | Primitives | Footprint | Target |
-|---------|------------|-----------|--------|
-| Embedded | 60 | ~2 KB | Microcontrollers |
-| Standard | 77 | ~35 KB | General embedded (ASCII text) |
-| Full | 89 | ~200 KB | Desktop/server (Unicode 15.0) |
-
-## Text and Unicode
-
-### 128-bit Grapheme Representation
-
-Grapheme clusters are stored inline in 128 bits (2 stack cells), avoiding lookup tables:
-
-```
-Lo (64 bits): [len:4][zwj_flags:4][cp0:21][cp1:21][cp2_lo:14]
-Hi (64 bits): [cp2_hi:7][cp3:21][cp4:21][reserved:15]
-```
-
-- Supports up to 5 base code points per grapheme
-- ZWJ flags indicate joins between adjacent code points
-- Handles emoji sequences like 👨‍👩‍👧‍👦 (family) inline
-
-### UAX #29 Grapheme Segmentation
-
-Full implementation of Unicode Text Segmentation:
-
-| Rule | Description |
-|------|-------------|
-| GB1-GB5 | Break at start/end, keep CR×LF |
-| GB6-GB8 | Hangul syllable sequences |
-| GB9-GB9a | Extend and SpacingMark |
-| GB9b | Prepend characters |
-| GB11 | Extended_Pictographic + ZWJ sequences |
-| GB12-GB13 | Regional Indicator pairs (flags) |
-| GB999 | Default break |
-
-### Unicode Tables
-
-Generated from Unicode 15.0:
-
-| Table | Entries |
-|-------|---------|
-| Uppercase mappings | 1,450 |
-| Lowercase mappings | 1,433 |
-| Combining classes | 922 |
-| Composition pairs | 1,026 |
-| Grapheme break properties | ~30,000 |
-| Extended_Pictographic | ~3,500 |
-
-## Automatic Parallelism
-
-Parallelism is not exposed as primitives. The runtime automatically exploits universe isolation:
-
-### Task Parallelism (Ravenscar)
-
-```ada
-pragma Profile (Ravenscar);
-
---  Fixed worker pool (static allocation)
-Workers : array (1 .. Num_Workers) of Worker_Task;
-
---  Submit universe for parallel execution
-Submit_Work (U, Callback);
-Wait_All;  -- Barrier synchronization
-```
-
-- Deterministic scheduling
-- No dynamic task creation
-- Priority ceiling protocol for protected objects
-
-### Data Parallelism (SIMD)
-
-```ada
---  Auto-vectorized by GNAT with -O2/-O3
-Par_Map (U, Start, Length, Op_Double'Access);
-Par_Reduce (U, Start, Length, 0, Op_Add'Access, Sum);
-Par_Fill (U, Start, Length, Value);
-```
-
-| Operation | Description |
-|-----------|-------------|
-| `Par_Map` | Apply unary op to each element |
-| `Par_Map_Binary` | Element-wise binary op |
-| `Par_Map_Scalar` | Broadcast scalar op |
-| `Par_Reduce` | Associative reduction |
-| `Par_Scan` | Prefix sum |
-| `Par_Fill` | Memory fill |
-| `Par_Copy` | Memory copy |
-| `Par_Sum/Min/Max` | Specialized reductions |
-
-### Scaling
-
-Same 89 primitives run everywhere:
-
-| Target | Task Parallel | Data Parallel |
-|--------|---------------|---------------|
-| Microcontroller | Sequential | None |
-| Desktop | N cores | SIMD |
-| Server | M cores | SIMD + GPU |
-
-## Compiler
-
-The compiler transforms `.space` source to SPARK/Ada:
-
-```
-.space → Lexer → Parser → AST → CodeGen → .ads/.adb → GNAT → binary
-```
-
-### Example
-
-**Input** (`example.space`):
-```forth
-: square  dup * ;
-: cube    dup square * ;
-: main    3 cube ;
-```
-
-**Output** (SPARK/Ada):
-```ada
-procedure Word_square (S : in Out Stack) is
-begin
-   Dup (S);
-   Mul (S);
-end Word_square;
-
-procedure Word_cube (S : in Out Stack) is
-begin
-   Dup (S);
-   Word_square (S);
-   Mul (S);
-end Word_cube;
-
-procedure Word_main (S : in Out Stack) is
-begin
-   Push (S, 3);
-   Word_cube (S);
-end Word_main;
-```
-
-### Supported Syntax
-
-```forth
-\ Line comment
-( Block comment )
-
-: name ... ;              \ Word definition
-123 0xFF -42              \ Numbers
-"hello"                   \ Strings
-
-if ... then               \ Conditional
-if ... else ... then      \ Conditional with else
-begin ... while ... repeat \ Loop
-10 0 do ... loop          \ Counted loop
-
-universe{ ... }universe   \ Universe block
-```
-
-## Verification
-
-All primitives have SPARK contracts:
-
-```ada
-procedure Dup (S : in Out Stack)
-  with Pre  => Size (S) >= 1 and Size (S) < Stack_Capacity,
-       Post => Size (S) = Size (S)'Old + 1
-               and Top (S) = Top (S)'Old;
-```
-
-Verify with GNATprove:
-
-```bash
-gnatprove -P space.gpr --level=2 --timeout=10
-```
-
-## Implementation Status
-
-| Phase | Description | Status |
-|-------|-------------|--------|
-| 1 | Core Runtime (41 primitives) | Complete |
-| 2 | Universe Model (+20 primitives) | Complete |
-| 3 | Text Handling (+28 primitives) | Complete |
-| 4 | Parallel Execution | Complete |
-| 5 | Compiler | Complete |
-| 6 | Verification & Certification | Pending |
-
-## Key Properties
-
-- `SPARK_Mode => On` throughout
-- All primitives have Pre/Post contracts
-- No dynamic allocation after init
-- Bounded stack and memory
-- Deterministic execution
-- Ravenscar-compliant tasking
-
-## Requirements
-
-- GNAT Pro or GNAT Community 2021+
-- GNATprove (for verification)
-
-No external dependencies. All tools are written in Ada.
 
 ## License
 
-See LICENSE file.
+Apache 2.0
+
+## Links
+
+- **Website:** [spacelang.org](https://spacelang.org)
+- **Formal Verification:** [spacelang.org/formal-verification](https://spacelang.org/formal-verification/)
+- **Heritage:** [spacelang.org/heritage](https://spacelang.org/heritage/)
+- **Philosophy:** [spacelang.org/philosophy](https://spacelang.org/philosophy/)
+
+## Author
+
+Created by [Danslav Slavenskoj](https://slavenskoj.com), [Lingenic LLC](https://lingenic.com).
