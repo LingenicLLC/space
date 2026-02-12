@@ -5,7 +5,7 @@
 **Date:** 2026-02-11
 **Version:** 0.9 alpha
 **Status:** SPARK/Ada **implementation in progress**
-
+The core semantics were proven correct in F* using dependent types. The production implementation in SPARK reimplements those semantics with contracts verified by GNATprove, and extends them with parallel execution
 ---
 
 Space is a verified concatenative systems programming language that compiles to SPARK/Ada.
